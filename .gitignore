@@ -1,0 +1,8 @@
+/target
+Cargo.lock
+/.idea
+/src/keys.rs
+/coverage
+/Profiling
+/perf.data
+/program_errors.txt
