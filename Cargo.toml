@@ -29,4 +29,4 @@ mockall = {version = "0.11", optional = true}
 mock = ["mockall"]
 
 [dev-dependencies]
-tokio-test = "*"
+tokio-test = "0.4"
