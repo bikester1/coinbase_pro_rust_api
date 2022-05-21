@@ -24,8 +24,8 @@
 //! ```
 //! use coinbase_pro::api::CBProAPI;
 //!
-//! #[tokio::main]
-//! async fn main() {
+//! #[tokio::test]
+//! async fn get_product() {
 //!     let api = CBProAPI::default();
 //!     let product = api.get_product("ETH-USD".to_string()).await.unwrap();
 //!
