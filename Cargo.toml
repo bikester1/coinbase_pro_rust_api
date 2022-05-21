@@ -4,6 +4,8 @@ description = "A Rust API for retriving data and placing trades on Coinbase Pro"
 license = "MIT OR Apache-2.0"
 version = "0.1.0"
 edition = "2021"
+repository = "https://github.com/bikester1/coinbase_pro_rust_api"
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
