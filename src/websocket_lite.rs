@@ -1,4 +1,4 @@
-#[feature(backtrace)]
+#[cfg(backtrace)]
 use std::backtrace::Backtrace;
 use std::cmp::min;
 use std::collections::vec_deque::VecDeque;
@@ -367,7 +367,7 @@ impl FrameParser {
             .get(*index as usize)
             .ok_or(WebsocketError::IndexingError {
                 index: index.clone(),
-                #[feature(backtrace)]
+                #[cfg(backtrace)]
                 backtrace: Backtrace::capture(),
             })?
             .clone();
@@ -390,7 +390,7 @@ impl FrameParser {
         if *index > 3 {
             return Err(WebsocketError::IndexingError {
                 index: index.clone(),
-                #[feature(backtrace)]
+                #[cfg(backtrace)]
                 backtrace: Backtrace::capture(),
             });
         }
@@ -482,7 +482,7 @@ impl WebsocketStreamConnector {
             .await
             .map_err(|err| TLSConnectionError {
                 source: Box::new(err),
-                #[feature(backtrace)]
+                #[cfg(backtrace)]
                 backtrace: Backtrace::capture(),
                 url: "".to_string(),
             })?;
@@ -757,7 +757,7 @@ where
 //             .await
 //             .map_err(|err| TLSConnectionError {
 //                 source: Box::new(err),
-//                 #[feature(backtrace)]
+//                 #[cfg(backtrace)]
 //                 backtrace: Backtrace::capture(),
 //                 url: "".to_string(),
 //             })?;
@@ -783,7 +783,7 @@ where
 //         while !eof {
 //             let byte = self.read_u8().await.map_err(|err| WebsocketIOError {
 //                 source: Box::new(err),
-//                 #[feature(backtrace)]
+//                 #[cfg(backtrace)]
 //                 backtrace: Backtrace::capture(),
 //                 context: Some(HashMap::from([
 //                     ("Buffer State".to_string(), format!("\"{}\"", buf.clone())),

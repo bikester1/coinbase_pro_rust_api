@@ -1,4 +1,4 @@
-#[feature(backtrace)]
+#[cfg(backtrace)]
 use std::backtrace::Backtrace;
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
@@ -368,7 +368,7 @@ impl AsyncIOBuilder for TokioTlsStreamBuilder {
             tokio_native_tls::native_tls::TlsConnector::new().map_err(|err| {
                 TLSConnectionError {
                     source: Box::new(err),
-                    #[feature(backtrace)]
+                    #[cfg(backtrace)]
                     backtrace: Backtrace::capture(),
                     url: url.to_string(),
                 }
@@ -381,7 +381,7 @@ impl AsyncIOBuilder for TokioTlsStreamBuilder {
             .await
             .map_err(|err| TLSConnectionError {
                 source: Box::new(err),
-                #[feature(backtrace)]
+                #[cfg(backtrace)]
                 backtrace: Backtrace::capture(),
                 url: url.to_string(),
             })?;
@@ -724,7 +724,7 @@ impl CBProAPI {
             .await
             .map_err(|err| WebsocketIOError {
                 source: Box::new(err),
-                #[feature(backtrace)]
+                #[cfg(backtrace)]
                 backtrace: Backtrace::capture(),
                 context: Some(HashMap::from([(
                     "Subscription".to_string(),
@@ -759,7 +759,7 @@ impl CBProAPI {
             .await
             .map_err(|err| WebsocketError::WebsocketIOError {
                 source: Box::new(err),
-                #[feature(backtrace)]
+                #[cfg(backtrace)]
                 backtrace: Backtrace::capture(),
                 context: None,
             })?;

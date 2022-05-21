@@ -1,3 +1,4 @@
+#[cfg(backtrace)]
 use std::backtrace::Backtrace;
 use std::collections::HashMap;
 use std::fmt::{
@@ -146,7 +147,7 @@ pub enum WebsocketError {
     ToDo,
     IndexingError {
         index: u8,
-        #[feature(backtrace)]
+        #[cfg(backtrace)]
         backtrace: Backtrace,
     },
     FrameSize(UnexpectedEnd),
@@ -159,7 +160,7 @@ pub enum WebsocketError {
     },
     WebsocketIOError {
         source: Box<dyn std::error::Error + 'static>,
-        #[feature(backtrace)]
+        #[cfg(backtrace)]
         backtrace: Backtrace,
         context: Option<HashMap<String, String>>,
     },
@@ -177,7 +178,7 @@ pub enum WebsocketError {
     },
     TLSConnectionError {
         source: Box<dyn std::error::Error + 'static>,
-        #[feature(backtrace)]
+        #[cfg(backtrace)]
         backtrace: Backtrace,
         url: String,
     },
@@ -196,7 +197,7 @@ impl From<std::io::Error> for WebsocketError {
     fn from(error: std::io::Error) -> Self {
         Self::WebsocketIOError {
             source: Box::new(error),
-            #[feature(backtrace)]
+            #[cfg(backtrace)]
             backtrace: Backtrace::capture(),
             context: None,
         }
@@ -233,6 +234,7 @@ impl Display for WebsocketError {
             WebsocketError::URLParseError { url, source } => {
                 format!("Failed to parse URL: {}\nSource error: {}", url, source)
             }
+            #[cfg(backtrace)]
             WebsocketError::WebsocketIOError {
                 source,
                 backtrace,
@@ -243,8 +245,18 @@ impl Display for WebsocketError {
                 if let Some(ctx) = context {
                     text.push_str(format!("{:?}", ctx).as_str());
                 }
-                #[feature(backtrace)]
+                #[cfg(backtrace)]
                 text.push_str(format!("\nBacktrace: {}", backtrace).as_str());
+                text
+            }
+            #[cfg(not(backtrace))]
+            WebsocketError::WebsocketIOError {
+                source, context, ..
+            } => {
+                let mut text = format!("Websocket IO Error\nSource error: {}\n", source);
+                if let Some(ctx) = context {
+                    text.push_str(format!("{:?}", ctx).as_str());
+                }
                 text
             }
             WebsocketError::WebsocketInitializationError(err) => {
@@ -262,6 +274,7 @@ impl Display for WebsocketError {
                     url, source
                 )
             }
+            #[cfg(backtrace)]
             WebsocketError::TLSConnectionError {
                 url,
                 source,
@@ -271,8 +284,16 @@ impl Display for WebsocketError {
                     "Error establishing TLS connection: {}\nSource error: {}\n",
                     url, source
                 );
-                #[feature(backtrace)]
+                #[cfg(backtrace)]
                 text.push_str(format!("\nBacktrace: {}", backtrace).as_str());
+                text
+            }
+            #[cfg(not(backtrace))]
+            WebsocketError::TLSConnectionError { url, source } => {
+                let mut text = format!(
+                    "Error establishing TLS connection: {}\nSource error: {}\n",
+                    url, source
+                );
                 text
             }
             WebsocketError::WebsocketConnectionError { url, source } => {
@@ -330,7 +351,7 @@ impl std::error::Error for WebsocketError {
         }
     }
 
-    #[feature(backtrace)]
+    #[cfg(backtrace)]
     fn backtrace(&self) -> Option<&Backtrace> {
         match self {
             WebsocketError::TLSConnectionError { backtrace, .. } => Some(backtrace),
@@ -343,7 +364,7 @@ impl std::error::Error for WebsocketError {
 pub struct UnexpectedEnd {
     pub expected_length: usize,
     pub received_size: usize,
-    #[feature(backtrace)]
+    #[cfg(backtrace)]
     pub backtrace: Backtrace,
 }
 
@@ -355,7 +376,7 @@ impl Display for UnexpectedEnd {
         Received size: {}",
             self.expected_length, self.received_size,
         );
-        #[feature(backtrace)]
+        #[cfg(backtrace)]
         text.push_str(format!("\nBacktrace: {}", self.backtrace).as_str());
         write!(f, "{}", text)
     }

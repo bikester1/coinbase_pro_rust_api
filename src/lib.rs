@@ -31,9 +31,6 @@
 //!     assert_eq!(product.display_name, "ETH-USD");
 //! }
 //! ```
-#![feature(backtrace)]
-#![feature(termination_trait_lib)]
-#![feature(process_exitcode_placeholder)]
 extern crate core;
 
 pub mod api;
@@ -53,10 +50,6 @@ mod tests {
         SocketAddr,
     };
     use std::ops::Deref;
-    use std::process::{
-        ExitCode,
-        Termination,
-    };
     use std::rc::Rc;
 
     use log::{
