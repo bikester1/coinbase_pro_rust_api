@@ -21,4 +21,4 @@ LINK2="\/\/\! \!\[coverage\]($LINK)"
 
 sed -i "s/\/\/\! \!\[coverage\].*/$LINK2/" ./src/lib.rs
 
-grep -E "\/\/\!." ./src/lib.rs | cut -c 5- > README.md
+grep -E "\/\/\!" ./src/lib.rs | cut -c 5- > README.md
