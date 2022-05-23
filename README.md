@@ -1,3 +1,27 @@
-# Coinbase Pro Rust API
-
-[![Rust](https://github.com/bikester1/coinbase_pro_rust_api/actions/workflows/rust.yml/badge.svg)](https://github.com/bikester1/coinbase_pro_rust_api/actions/workflows/rust.yml)
+# Coinbase Pro API
+[https://img.shields.io/github/workflow/status/bikester1/coinbase_pro_rust_api/Rust/main?style=for-the-badge]
+![coverage](https://img.shields.io/badge/Coverage-81%25-yellow)
+coinbase_pro is an api for getting market data from the coinbase pro public API.
+This crate aims to be a simple lightweight interface for making requests to coinbase's API.
+This crate also aims to make available abstractions at the lowest level possible.
+This allows users to specify how the responses get parsed.
+## Quickstart Info
+This api has a main client struct called [CBProAPI]. This struct is like a reqwest struct and
+can be cheaply copied, cloned, and passed between threads. Internally it implements its
+state utilizing [std::sync::Arc](https://doc.rust-lang.org/std/sync/struct.Arc.html)
+and [tokio::sync::Mutex](https://docs.rs/tokio/latest/tokio/sync/struct.Mutex.html).
+## Future Proofing
+In addition to the standard usage of this api through [CBProAPI], this crate exposes a low level
+[CBRequestBuilder] that allows additional endpoints and custom deserialization if coinbase
+ever changed their api, endpoints, or data formats.
+## Examples
+### Basic Usage
+```
+use coinbase_pro::api::CBProAPI;
+#[tokio::test]
+async fn get_product() {
+    let api = CBProAPI::default();
+    let product = api.get_product("ETH-USD".to_string()).await.unwrap();
+    assert_eq!(product.display_name, "ETH-USD");
+}
+```
