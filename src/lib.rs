@@ -1,5 +1,5 @@
 //! # Coinbase Pro API
-//! [https://img.shields.io/github/workflow/status/bikester1/coinbase_pro_rust_api/Rust/main?style=for-the-badge]
+//! ![Build](https://img.shields.io/github/workflow/status/bikester1/coinbase_pro_rust_api/Rust/main?style=for-the-badge)
 //! ![coverage](https://img.shields.io/badge/Coverage-81%25-yellow)
 //!
 //!
