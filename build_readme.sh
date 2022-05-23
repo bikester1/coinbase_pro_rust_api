@@ -15,7 +15,7 @@ else
   COLOR="red"
 fi
 
-LINK="https:\/\/img\.shields\.io\/badge\/Coverage-$PERCENTAGE""%25-$COLOR"
+LINK="https:\/\/img\.shields\.io\/badge\/Coverage-$PERCENTAGE""%25-$COLOR?style=for-the-badge"
 
 LINK2="\/\/\! \!\[coverage\]($LINK)"
 
