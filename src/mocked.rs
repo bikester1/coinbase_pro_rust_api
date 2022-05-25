@@ -460,16 +460,26 @@ impl Write for MockTlsStream<MockTcpStream> {
 
 #[derive(Clone)]
 pub struct MockStream {
-    pub(crate) stream_contents: Arc<StdMutex<VecDeque<u8>>>,
+    pub(crate) stream_contents: Arc<StdMutex<VecDeque<Vec<u8>>>>,
     pub(crate) writes: Arc<StdMutex<VecDeque<u8>>>,
 }
 
 impl MockStream {
     pub fn new(buf: &[u8]) -> Self {
+        let mut queue = VecDeque::new();
+        let mut resp = buf.to_vec();
+        resp.reverse();
+        queue.push_back(resp);
         Self {
-            stream_contents: Arc::new(StdMutex::new(VecDeque::from_iter(buf.to_vec().into_iter()))),
+            stream_contents: Arc::new(StdMutex::new(queue)),
             writes: Arc::new(StdMutex::new(Default::default())),
         }
+    }
+
+    pub async fn append_response(&mut self, buf: &[u8]) {
+        let mut resp = buf.to_vec();
+        resp.reverse();
+        self.stream_contents.lock().unwrap().push_back(resp);
     }
 }
 
@@ -479,24 +489,25 @@ impl AsyncRead for MockStream {
         cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
-        let mut internal_buf = Vec::new();
-        loop {
-            if buf.remaining() <= internal_buf.len() {
-                break;
-            }
+        let mut next_message = match self.stream_contents.lock().unwrap().pop_front() {
+            None => return Poll::Pending,
+            Some(vec) => vec,
+        };
 
-            let next = match self.stream_contents.lock().unwrap().pop_front() {
-                Some(next) => next,
-                None => {
-                    break;
-                }
-            };
-
-            internal_buf.push(next);
+        if next_message.is_empty() {
+            return Poll::Ready(Ok(()));
         }
 
-        buf.put_slice(internal_buf.as_slice());
+        let mut internal_buffer: Vec<u8> = Vec::new();
+        while !next_message.is_empty() && buf.remaining() > internal_buffer.len() {
+            internal_buffer.push(next_message.pop().unwrap())
+        }
 
+        buf.put_slice(internal_buffer.as_slice());
+        self.stream_contents
+            .lock()
+            .unwrap()
+            .push_front(next_message);
         Poll::Ready(Ok(()))
     }
 }
