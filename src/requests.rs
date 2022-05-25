@@ -68,6 +68,13 @@ impl Into<reqwest::Method> for RequestMethod {
     }
 }
 
+/// # CBRequestBuilder
+///
+/// This is the low level api for creating your own request to coinbase.
+/// It allows for several features including signed requests, pagenated responses, custom user agent, and
+/// custom url in case you would like to query an alternate endpoint or coinbase changes urls.
+///
+///
 pub struct CBRequestBuilder {
     client: Client,
     user_agent: String,
@@ -91,6 +98,11 @@ impl CBRequestBuilder {
             url: "https://api.exchange.coinbase.com".to_string(),
             method: RequestMethod::GET,
         }
+    }
+
+    pub fn set_url(mut self, url: String) -> Self {
+        self.url = url;
+        self
     }
 
     pub fn add_query_param(mut self, key: String, value: String) -> Self {
