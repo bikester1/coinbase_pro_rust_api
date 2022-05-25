@@ -1,6 +1,6 @@
 # Coinbase Pro API
 ![Build](https://img.shields.io/github/workflow/status/bikester1/coinbase_pro_rust_api/Rust/main?style=for-the-badge)
-![coverage](https://img.shields.io/badge/Coverage-81%25-yellow?style=for-the-badge)
+![coverage](https://img.shields.io/badge/Coverage-84%25-yellow?style=for-the-badge)
 
 
 coinbase_pro is an api for getting market data from the coinbase pro public API.
@@ -35,5 +35,23 @@ async fn get_product() {
     let product = api.get_product("ETH-USD".to_string()).await.unwrap();
 
     assert_eq!(product.display_name, "ETH-USD");
+}
+```
+
+### Websocket
+```
+use coinbase_pro::api::CBProAPI;
+use coinbase_pro::api::SubscriptionBuilder;
+
+#[tokio::test]
+async fn subscribe() {
+    let mut api = CBProAPI::default();
+    let subscribe_message = SubscriptionBuilder::new()
+        .subscribe_to_heartbeat("ETH-USD".to_string())
+        .build();
+
+    api.subscribe_to_websocket(subscribe_message).await.unwrap();
+    
+    let response = api.read_websocket().await.unwrap();
 }
 ```
