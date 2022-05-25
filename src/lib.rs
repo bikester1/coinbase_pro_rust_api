@@ -1,6 +1,6 @@
 //! # Coinbase Pro API
 //! ![Build](https://img.shields.io/github/workflow/status/bikester1/coinbase_pro_rust_api/Rust/main?style=for-the-badge)
-//! ![coverage](https://img.shields.io/badge/Coverage-81%25-yellow?style=for-the-badge)
+//! ![coverage](https://img.shields.io/badge/Coverage-84%25-yellow?style=for-the-badge)
 //!
 //!
 //! coinbase_pro is an api for getting market data from the coinbase pro public API.
@@ -35,6 +35,24 @@
 //!     let product = api.get_product("ETH-USD".to_string()).await.unwrap();
 //!
 //!     assert_eq!(product.display_name, "ETH-USD");
+//! }
+//! ```
+//!
+//! ### Websocket
+//! ```
+//! use coinbase_pro::api::CBProAPI;
+//! use coinbase_pro::api::SubscriptionBuilder;
+//!
+//! #[tokio::test]
+//! async fn subscribe() {
+//!     let mut api = CBProAPI::default();
+//!     let subscribe_message = SubscriptionBuilder::new()
+//!         .subscribe_to_heartbeat("ETH-USD".to_string())
+//!         .build();
+//!
+//!     api.subscribe_to_websocket(subscribe_message).await.unwrap();
+//!     
+//!     let response = api.read_websocket().await.unwrap();
 //! }
 //! ```
 extern crate core;
@@ -1521,16 +1539,18 @@ mod websocket_stream_tests {
     }
 
     pub(crate) fn websocket_heartbeat_message() -> Vec<u8> {
-        "\
-        {\"type\":\"heartbeat\",\"last_trade_id\":278953096,\"product_id\":\"ETH-USD\",\"sequence\":29716844241,\"time\":\"2022-05-20T21:22:34.751219Z\"}\
-        "
+        r#"{"type":"heartbeat","last_trade_id":278953096,"product_id":"ETH-USD","sequence":29716844241,"time":"2022-05-20T21:22:34.751219Z"}"#
         .as_bytes()
         .to_vec()
     }
 
     #[tokio::test]
     async fn api_websocket_sub_tc2() {
-        let stream = MockStream::new(&websocket_sub_response());
+        let mut test_resp = websocket_heartbeat_message();
+        let mut sub_resp = websocket_sub_response();
+        let mut stream = MockStream::new(&sub_resp);
+        stream.append_response(&test_resp).await;
+
         let stream_builder = MockIOBuilder::new(&stream);
         let client = MockClient::new_mock(MockRequestBuilder::new_mock(vec![]));
 
@@ -1552,6 +1572,175 @@ mod websocket_stream_tests {
             .into_iter()
             .collect::<Vec<u8>>();
         assert_eq!(String::from_utf8(writes).unwrap(), "{\"type\":\"subscribe\",\"channels\":[{\"name\":\"full\",\"product_ids\":[\"my_product\"]}]}");
+
+        api.read_websocket().await.unwrap();
+    }
+
+    pub(crate) fn websocket_status_message() -> Vec<u8> {
+        r#"{"type":"status","currencies":[{"id":"EUR","name":"Euro","min_size":"0.01","status":"online","funding_account_id":"dfa7a9b4-3c16-4f79-ae1d-8d0292537ded","status_message":"","max_precision":"0.01","convertible_to":[],"details":{"type":"fiat","symbol":"€","network_confirmations":0,"sort_order":2,"crypto_address_link":"","crypto_transaction_link":"","push_payment_methods":["sepa_bank_account"],"group_types":["fiat","eur"]}},{"id":"RNDR","name":"Render Token","min_size":"0.00000001","status":"online","funding_account_id":"","status_message":"","max_precision":"0.00000001","convertible_to":[],"details":{"type":"crypto","symbol":"","network_confirmations":14,"sort_order":500,"crypto_address_link":"https://etherscan.io/token/0x6de037ef9ad2725eb40118bb1702ebb27e4aeb24?a={{address}}","crypto_transaction_link":"https://etherscan.io/tx/0x{{txId}}","push_payment_methods":["crypto"],"min_withdrawal_amount":1e-08,"max_withdrawal_amount":180000}}],"products":[{"id":"MINA-USDT","base_currency":"MINA","quote_currency":"USDT","base_min_size":"0.1","base_max_size":"160000","base_increment":"0.001","quote_increment":"0.001","display_name":"MINA/USDT","status":"online","margin_enabled":false,"status_message":"","min_market_funds":"1","max_market_funds":"250000","post_only":false,"limit_only":true,"cancel_only":false,"auction_mode":false,"type":"spot","fx_stablecoin":false,"max_slippage_percentage":"0.03000000"}]}"#.as_bytes().to_vec()
+    }
+
+    #[tokio::test]
+    async fn api_websocket_status() {
+        let mut test_resp = websocket_status_message();
+        let mut sub_resp = websocket_sub_response();
+        let mut stream = MockStream::new(&sub_resp);
+        stream.append_response(&test_resp).await;
+
+        let stream_builder = MockIOBuilder::new(&stream);
+        let client = MockClient::new_mock(MockRequestBuilder::new_mock(vec![]));
+
+        let mut api = CBProAPI::from_client_and_io_builder(client, stream_builder.clone());
+
+        api.subscribe_to_websocket(
+            SubscriptionBuilder::new()
+                .subscribe_to_full("my_product".to_string())
+                .build(),
+        )
+        .await
+        .unwrap();
+
+        let writes = stream
+            .writes
+            .lock()
+            .unwrap()
+            .clone()
+            .into_iter()
+            .collect::<Vec<u8>>();
+        assert_eq!(String::from_utf8(writes).unwrap(), "{\"type\":\"subscribe\",\"channels\":[{\"name\":\"full\",\"product_ids\":[\"my_product\"]}]}");
+
+        api.read_websocket().await.unwrap();
+    }
+
+    pub(crate) fn websocket_ticker_message() -> Vec<u8> {
+        r#"{"type":"ticker","sequence":29892364716,"product_id":"ETH-USD","price":"1958.18","open_24h":"1930","volume_24h":"163658.03343361","low_24h":"1909.51","high_24h":"2020","volume_30d":"6409735.37447281","best_bid":"1958.18","best_ask":"1958.37","side":"sell","time":"2022-05-25T13:06:56.076339Z","trade_id":280884307,"last_size":"0.001"}"#.as_bytes().to_vec()
+    }
+
+    #[tokio::test]
+    async fn api_websocket_ticker() {
+        let mut test_resp = websocket_ticker_message();
+        let mut sub_resp = websocket_sub_response();
+        let mut stream = MockStream::new(&sub_resp);
+        stream.append_response(&test_resp).await;
+
+        let stream_builder = MockIOBuilder::new(&stream);
+        let client = MockClient::new_mock(MockRequestBuilder::new_mock(vec![]));
+
+        let mut api = CBProAPI::from_client_and_io_builder(client, stream_builder.clone());
+
+        api.subscribe_to_websocket(
+            SubscriptionBuilder::new()
+                .subscribe_to_full("my_product".to_string())
+                .build(),
+        )
+        .await
+        .unwrap();
+
+        let writes = stream
+            .writes
+            .lock()
+            .unwrap()
+            .clone()
+            .into_iter()
+            .collect::<Vec<u8>>();
+        assert_eq!(String::from_utf8(writes).unwrap(), "{\"type\":\"subscribe\",\"channels\":[{\"name\":\"full\",\"product_ids\":[\"my_product\"]}]}");
+
+        api.read_websocket().await.unwrap();
+    }
+
+    pub(crate) fn websocket_l2update_message() -> Vec<u8> {
+        r#"{"type":"l2update","product_id":"ETH-USD","changes":[["sell","1957.66","0.00000000"]],"time":"2022-05-25T13:10:32.186903Z"}"#.as_bytes().to_vec()
+    }
+
+    pub(crate) fn websocket_l2snapshot_message() -> Vec<u8> {
+        r#"{"type":"snapshot","product_id":"ETH-USD","asks":[["1955.81","0.00130538"],["1955.87","0.00000075"],["1955.99","0.22090846"],["1956.00","0.18126838"],["1956.02","2.10000000"],["1956.19","0.07814036"],["1956.21","0.10204759"],["1956.22","0.52470044"],["1956.23","8.00000000"],["1956.28","0.80982895"],["1956.29","0.14812073"]],"bids":[["1955.80","0.19478896"],["1955.79","0.79800000"],["1955.78","1.33910752"],["1955.77","2.55350878"],["1955.66","1.07737484"],["1955.62","2.29221645"]]}"#.as_bytes().to_vec()
+    }
+
+    #[tokio::test]
+    async fn api_websocket_snapshot() {
+        let mut sub_resp = websocket_sub_response();
+        let mut stream = MockStream::new(&sub_resp);
+        stream
+            .append_response(&websocket_l2snapshot_message())
+            .await;
+        stream.append_response(&websocket_l2update_message()).await;
+
+        let stream_builder = MockIOBuilder::new(&stream);
+        let client = MockClient::new_mock(MockRequestBuilder::new_mock(vec![]));
+
+        let mut api = CBProAPI::from_client_and_io_builder(client, stream_builder.clone());
+
+        api.subscribe_to_websocket(
+            SubscriptionBuilder::new()
+                .subscribe_to_snapshot("my_product".to_string())
+                .build(),
+        )
+        .await
+        .unwrap();
+
+        let writes = stream
+            .writes
+            .lock()
+            .unwrap()
+            .clone()
+            .into_iter()
+            .collect::<Vec<u8>>();
+        assert_eq!(
+            String::from_utf8(writes).unwrap(),
+            r#"{"type":"subscribe","channels":[{"name":"level2","product_ids":["my_product"]}]}"#
+        );
+
+        api.read_websocket().await.unwrap();
+    }
+
+    pub(crate) fn websocket_l3limit_message() -> Vec<u8> {
+        r#"{"order_id":"145110f7-362c-48d2-a7d0-a407918775dd","order_type":"limit","size":"1.06548906","price":"1950.34","client_oid":"8cb2eea3-4fa4-495b-a949-976940c4b021","type":"received","side":"sell","product_id":"ETH-USD","time":"2022-05-25T13:29:58.006556Z","sequence":29892914014}"#.as_bytes().to_vec()
+    }
+
+    pub(crate) fn websocket_l3cancel_message() -> Vec<u8> {
+        r#"{"order_id":"dfbea570-d38b-4a08-ad0d-873e3ea73a0d","reason":"canceled","price":"1948.63","remaining_size":"0.44704","type":"done","side":"sell","product_id":"ETH-USD","time":"2022-05-25T13:29:57.988607Z","sequence":29892914013}"#.as_bytes().to_vec()
+    }
+
+    pub(crate) fn websocket_l3match_message() -> Vec<u8> {
+        r#"{"price":"1948.35","order_id":"dbeb625b-42cb-4559-af17-225b96aa674c","remaining_size":"1.8","type":"open","side":"buy","product_id":"ETH-USD","time":"2022-05-25T13:29:57.980958Z","sequence":29892914009}"#.as_bytes().to_vec()
+    }
+
+    #[tokio::test]
+    async fn api_websocket_l3() {
+        let mut sub_resp = websocket_sub_response();
+        let mut stream = MockStream::new(&sub_resp);
+        stream.append_response(&websocket_l3limit_message()).await;
+        stream.append_response(&websocket_l3match_message()).await;
+        stream.append_response(&websocket_l3cancel_message()).await;
+
+        let stream_builder = MockIOBuilder::new(&stream);
+        let client = MockClient::new_mock(MockRequestBuilder::new_mock(vec![]));
+
+        let mut api = CBProAPI::from_client_and_io_builder(client, stream_builder.clone());
+
+        api.subscribe_to_websocket(
+            SubscriptionBuilder::new()
+                .subscribe_to_full("my_product".to_string())
+                .build(),
+        )
+        .await
+        .unwrap();
+
+        let writes = stream
+            .writes
+            .lock()
+            .unwrap()
+            .clone()
+            .into_iter()
+            .collect::<Vec<u8>>();
+        assert_eq!(
+            String::from_utf8(writes).unwrap(),
+            r#"{"type":"subscribe","channels":[{"name":"full","product_ids":["my_product"]}]}"#
+        );
+
+        api.read_websocket().await.unwrap();
+        api.read_websocket().await.unwrap();
+        api.read_websocket().await.unwrap();
     }
 }
 
@@ -1559,11 +1748,13 @@ mod websocket_stream_tests {
 mod live_tests {
     use log::LevelFilter;
     use simple_logger::SimpleLogger;
+    use std::time::Duration;
 
     use crate::api::{
         CBProAPI,
         SubscriptionBuilder,
     };
+    use crate::datastructs::websocket::WebsocketMessage;
 
     #[tokio::test]
     pub async fn heartbeat() {
@@ -1576,7 +1767,107 @@ mod live_tests {
         api.subscribe_to_websocket(request).await.unwrap();
 
         api.read_websocket().await.unwrap();
+    }
+
+    #[tokio::test]
+    pub async fn status() {
+        let res = SimpleLogger::new().with_level(LevelFilter::Debug).init();
+        let mut api = CBProAPI::default();
+        let request = SubscriptionBuilder::new().subscribe_to_status().build();
+
+        api.subscribe_to_websocket(request).await.unwrap();
+
+        api.read_websocket().await.unwrap();
+    }
+
+    #[tokio::test]
+    pub async fn ticker() {
+        let res = SimpleLogger::new().with_level(LevelFilter::Debug).init();
+        let mut api = CBProAPI::default();
+        let request = SubscriptionBuilder::new()
+            .subscribe_to_ticker("ETH-USD".to_string())
+            .build();
+
+        api.subscribe_to_websocket(request).await.unwrap();
+
+        api.read_websocket().await.unwrap();
+        tokio::time::sleep(Duration::new(10, 0)).await;
         api.read_websocket().await.unwrap();
         api.read_websocket().await.unwrap();
+        for x in 1..20 {
+            api.read_websocket().await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+    pub async fn level2() {
+        let res = SimpleLogger::new().with_level(LevelFilter::Debug).init();
+        let mut api = CBProAPI::default();
+        let request = SubscriptionBuilder::new()
+            .subscribe_to_snapshot("ETH-USD".to_string())
+            .build();
+
+        api.subscribe_to_websocket(request).await.unwrap();
+
+        api.read_websocket().await.unwrap();
+        tokio::time::sleep(Duration::new(10, 0)).await;
+        api.read_websocket().await.unwrap();
+        api.read_websocket().await.unwrap();
+        for x in 1..20 {
+            api.read_websocket().await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+    pub async fn level3() {
+        let res = SimpleLogger::new().with_level(LevelFilter::Debug).init();
+        let mut api = CBProAPI::default();
+        let request = SubscriptionBuilder::new()
+            .subscribe_to_full("ETH-USD".to_string())
+            .build();
+
+        api.subscribe_to_websocket(request).await.unwrap();
+
+        let mut rec = 0;
+        let mut open = 0;
+        let mut match_msg = 0;
+        let mut done = 0;
+        let mut change = 0;
+        let mut activate = 0;
+
+        for i in 0..10000 {
+            match api.read_websocket().await.unwrap() {
+                WebsocketMessage::Received(_) => {
+                    rec += 1;
+                    println!("Receive: {}", rec);
+                }
+                WebsocketMessage::Open(_) => {
+                    open += 1;
+                    println!("Open: {}", open);
+                }
+                WebsocketMessage::Match(_) => {
+                    match_msg += 1;
+                    println!("Match: {}", match_msg);
+                }
+                WebsocketMessage::Done(_) => {
+                    done += 1;
+                    println!("Done: {}", done);
+                }
+                WebsocketMessage::Change(_) => {
+                    change += 1;
+                    println!("Change: {}", change);
+                }
+                WebsocketMessage::Activate(_) => {
+                    activate += 1;
+                    println!("Activate: {}", activate);
+                }
+                _ => {}
+            }
+        }
+
+        println!(
+            "rec: {}, {}, {}, {}, {}, {}",
+            rec, open, match_msg, done, change, activate
+        );
     }
 }
