@@ -10,7 +10,7 @@ This allows users to specify how the responses get parsed.
 
 ## Quickstart Info
 
-This api has a main client struct called [CBProAPI]. This struct is like a reqwest struct and
+This api has a main client struct called [api::CBProAPI]. This struct is like a reqwest struct and
 can be cheaply copied, cloned, and passed between threads. Internally it implements its
 state utilizing [std::sync::Arc](https://doc.rust-lang.org/std/sync/struct.Arc.html)
 and [tokio::sync::Mutex](https://docs.rs/tokio/latest/tokio/sync/struct.Mutex.html).
@@ -18,8 +18,8 @@ and [tokio::sync::Mutex](https://docs.rs/tokio/latest/tokio/sync/struct.Mutex.ht
 
 ## Future Proofing
 
-In addition to the standard usage of this api through [CBProAPI], this crate exposes a low level
-[CBRequestBuilder] that allows additional endpoints and custom deserialization if coinbase
+In addition to the standard usage of this api through [api::CBProAPI], this crate exposes a low level
+[requests::CBRequestBuilder] that allows additional endpoints and custom deserialization if coinbase
 ever changed their api, endpoints, or data formats.
 
 
