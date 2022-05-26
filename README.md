@@ -1,6 +1,6 @@
 # Coinbase Pro API
 ![Build](https://img.shields.io/github/workflow/status/bikester1/coinbase_pro_rust_api/Rust/main?style=for-the-badge)
-![coverage](https://img.shields.io/badge/Coverage-84%25-yellow?style=for-the-badge)
+![coverage](https://img.shields.io/badge/Coverage-82%25-yellow?style=for-the-badge)
 
 
 coinbase_pro is an api for getting market data from the coinbase pro public API.
