@@ -1,48 +1,32 @@
 #![cfg(feature = "mock")]
 
 use std::any::type_name;
-use std::borrow::{
-    Borrow,
-    BorrowMut,
-};
+
 use std::cell::RefCell;
 use std::cmp::min;
 use std::collections::vec_deque::VecDeque;
 use std::fmt::{
-    write,
     Debug,
     Display,
     Formatter,
 };
-use std::future::Future;
 use std::io::{
     Read,
     Write,
 };
-use std::iter::Map;
-use std::mem::swap;
+
+use std::io;
 use std::net::SocketAddr;
-use std::ops::{
-    Deref,
-    DerefMut,
-};
+use std::ops::Deref;
 use std::pin::Pin;
-use std::rc::Rc;
 use std::sync::{
     Arc,
     Mutex as StdMutex,
 };
-use std::task::Poll::{
-    Pending,
-    Ready,
-};
+use std::task::Poll::Ready;
 use std::task::{
     Context,
     Poll,
-};
-use std::{
-    io,
-    mem,
 };
 
 use async_trait::async_trait;
@@ -50,7 +34,6 @@ use log::debug;
 use mockall::mock;
 use reqwest::header::{
     AsHeaderName,
-    HeaderMap,
     HeaderName,
     HeaderValue,
 };
@@ -59,27 +42,18 @@ use reqwest::{
     Error,
     IntoUrl,
     Method,
-    Response,
 };
 use tokio::io::{
     AsyncRead,
     AsyncWrite,
     ReadBuf,
 };
-use tokio::net::TcpStream;
-use tokio::sync::{
-    Mutex,
-    MutexGuard,
-    OwnedMutexGuard,
-    TryLockError,
-};
 
-use crate::api::{
-    APIKeyData,
-    AsyncIOBuilder,
-};
+use tokio::sync::Mutex;
+
+use crate::api::AsyncIOBuilder;
 use crate::errors::WebsocketError;
-use crate::requests::SignRequest;
+
 use crate::websocket_lite::AsyncIO;
 
 pub struct MockClient {
@@ -102,7 +76,7 @@ impl MockClient {
         }
     }
 
-    pub fn request(&self, method: Method, url: impl IntoUrl) -> MockRequestBuilder {
+    pub fn request(&self, _method: Method, url: impl IntoUrl) -> MockRequestBuilder {
         self.requested_url
             .deref()
             .replace(format!("{:?}", url.into_url().map(|x| x.to_string())));
@@ -197,7 +171,7 @@ impl MockRequestBuilder {
         K: TryInto<HeaderName> + std::fmt::Debug + 'static,
         V: TryInto<HeaderValue> + std::fmt::Debug + 'static,
     >(
-        mut self,
+        self,
         key: K,
         value: V,
     ) -> Self {
@@ -208,14 +182,14 @@ impl MockRequestBuilder {
         self
     }
 
-    pub fn body(mut self, body: Body) -> Self {
+    pub fn body(self, body: Body) -> Self {
         let arg_1 = ArgumentInfo::new("body", body);
         let call_info = CallInfo::new("body", vec![arg_1]);
         self.call_info.deref().borrow_mut().push(call_info);
         self
     }
 
-    pub fn query<T: std::fmt::Debug + 'static>(mut self, query_params: &T) -> Self {
+    pub fn query<T: std::fmt::Debug + 'static>(self, query_params: &T) -> Self {
         let arg_1 = ArgumentInfo::new("query_params", query_params);
         let call_info = CallInfo::new("query", vec![arg_1]);
         self.call_info.deref().borrow_mut().push(call_info);
@@ -227,7 +201,7 @@ impl MockRequestBuilder {
     }
 
     pub fn build(&self) -> Result<MockResponse, Error> {
-        let mut clone = self.clone();
+        let clone = self.clone();
         let mut test = clone.payloads.deref().borrow_mut();
         Ok(test.pop().unwrap())
     }
@@ -268,6 +242,7 @@ impl MockTcpStream {
         }
     }
 
+    #[allow(unused)]
     pub async fn connect(addr: SocketAddr) -> Result<MockTcpStream, WebsocketError> {
         let new_stream = Self {
             connect_calls: Arc::new(Mutex::new(vec![addr])),
@@ -279,8 +254,8 @@ impl MockTcpStream {
 impl AsyncRead for MockTcpStream {
     fn poll_read(
         self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
+        _cx: &mut Context<'_>,
+        _buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
         todo!()
     }
@@ -289,29 +264,29 @@ impl AsyncRead for MockTcpStream {
 impl AsyncWrite for MockTcpStream {
     fn poll_write(
         self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
+        _cx: &mut Context<'_>,
+        _buf: &[u8],
     ) -> Poll<Result<usize, io::Error>> {
         todo!()
     }
 
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
         todo!()
     }
 
-    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
+    fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
         todo!()
     }
 }
 
 impl Read for MockTcpStream {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+    fn read(&mut self, _buf: &mut [u8]) -> io::Result<usize> {
         todo!()
     }
 }
 
 impl Write for MockTcpStream {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+    fn write(&mut self, _buf: &[u8]) -> io::Result<usize> {
         todo!()
     }
 
@@ -326,6 +301,7 @@ pub struct MockTlsConnector {
     pub mock_stream: MockTlsStream<MockTcpStream>,
 }
 
+#[allow(unused)]
 impl MockTlsConnector {
     pub fn new(stream: &MockTlsStream<MockTcpStream>) -> MockTlsConnector {
         let new_connector = Self {
@@ -335,6 +311,7 @@ impl MockTlsConnector {
         new_connector
     }
 
+    #[allow(unused)]
     pub async fn connect<S: Read + Write>(
         self,
         url: &str,
@@ -380,7 +357,7 @@ impl MockTlsStream<MockTcpStream> {
 impl AsyncRead for MockTlsStream<MockTcpStream> {
     fn poll_read(
         self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
+        _cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
         debug!("poll_read called");
@@ -414,7 +391,7 @@ impl AsyncRead for MockTlsStream<MockTcpStream> {
 impl AsyncWrite for MockTlsStream<MockTcpStream> {
     fn poll_write(
         self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
+        _cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<Result<usize, io::Error>> {
         debug!("pollwrite: {:?}", buf);
@@ -433,11 +410,11 @@ impl AsyncWrite for MockTlsStream<MockTcpStream> {
         }
     }
 
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
         Ready(Ok(()))
     }
 
-    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
+    fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
         Ready(Ok(()))
     }
 }
@@ -461,7 +438,7 @@ impl Write for MockTlsStream<MockTcpStream> {
 #[derive(Clone)]
 pub struct MockStream {
     pub(crate) stream_contents: Arc<StdMutex<VecDeque<Vec<u8>>>>,
-    pub(crate) writes: Arc<StdMutex<VecDeque<u8>>>,
+    pub(crate) writes: Arc<StdMutex<VecDeque<Vec<u8>>>>,
 }
 
 impl MockStream {
@@ -485,8 +462,8 @@ impl MockStream {
 
 impl AsyncRead for MockStream {
     fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
         let mut next_message = match self.stream_contents.lock().unwrap().pop_front() {
@@ -514,21 +491,19 @@ impl AsyncRead for MockStream {
 
 impl AsyncWrite for MockStream {
     fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<Result<usize, io::Error>> {
-        buf.into_iter()
-            .for_each(|byte| self.writes.lock().unwrap().push_back(byte.clone()));
-
+        self.writes.lock().unwrap().push_back(buf.to_vec());
         Ready(Ok(buf.len()))
     }
 
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
         Ready(Ok(()))
     }
 
-    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
+    fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
         Ready(Ok(()))
     }
 }
@@ -548,7 +523,7 @@ impl MockIOBuilder {
 
 #[async_trait]
 impl AsyncIOBuilder for MockIOBuilder {
-    async fn new_stream(&self, url: &str) -> Result<Box<dyn AsyncIO>, WebsocketError> {
+    async fn new_stream(&self, _url: &str) -> Result<Box<dyn AsyncIO>, WebsocketError> {
         Ok(Box::new(self.stream.clone()))
     }
 }

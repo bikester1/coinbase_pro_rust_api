@@ -4,7 +4,6 @@ use hmac::{
     Hmac,
     Mac,
 };
-use log::debug;
 use reqwest::Method;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -244,7 +243,7 @@ impl CBRequestBuilder {
             );
         }
 
-        let req = request.try_clone().unwrap().build().unwrap();
+        request.try_clone().unwrap().build().unwrap();
 
         let response_body = request.send().await?.text().await?;
 

@@ -82,9 +82,7 @@ pub struct Product {
 ///
 /// # JSON Input Example
 ///
-/// ```ignore
-///
-/// ```
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(default)]
 pub struct ProductBook {
@@ -144,37 +142,35 @@ pub struct Currency {
 }
 
 /// # Strongly Typed xxx
-/// A strongly typed representation of xxx [xxx](xxx).
+/// A strongly typed representation of xxx .
 ///
-/// CBPro API reference: [xxx](xxx).
+/// CBPro API reference: .
 ///
 ///
 /// # JSON Input Example
 ///
 /// ```ignore
-///
+///     id: string required
+///     name: string required
+///     min_size: string required
+///     status: string required
+///     message: string
+///     max_precision: string required
+///     convertible_to: array of strings
+///     details: object required
+///          type: string
+///          symbol: string
+///          network_confirmations: int32
+///          sort_order: int32
+///          crypto_address_link: string
+///          crypto_transaction_link: string
+///          push_payment_methods: array of strings
+///          group_types: array of strings
+///          display_name: string
+///          processing_time_seconds: float
+///          min_withdrawal_amount: double
+///          max_withdrawal_amount: double
 /// ```
-///id: string required
-///name: string required
-///min_size: string required
-///status: string required
-///message: string
-///max_precision: string required
-///convertible_to: array of strings
-///details: object required
-///     type: string
-///     symbol: string
-///     network_confirmations: int32
-///     sort_order: int32
-///     crypto_address_link: string
-///     crypto_transaction_link: string
-///     push_payment_methods: array of strings
-///     group_types: array of strings
-///     display_name: string
-///     processing_time_seconds: float
-///     min_withdrawal_amount: double
-///     max_withdrawal_amount: double
-///
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(default)]
 pub struct CurrencyDetails {
@@ -194,16 +190,14 @@ pub struct CurrencyDetails {
 }
 
 /// # Strongly Typed xxx
-/// A strongly typed representation of xxx [xxx](xxx).
+/// A strongly typed representation of xxx .
 ///
-/// CBPro API reference: [xxx](xxx).
+/// CBPro API reference: .
 ///
 ///
 /// # JSON Input Example
 ///
-/// ```ignore
-///
-/// ```
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Orders {
     #[serde(with = "string_as_float")]
@@ -214,16 +208,14 @@ pub struct Orders {
 }
 
 /// # Strongly Typed xxx
-/// A strongly typed representation of xxx [xxx](xxx).
+/// A strongly typed representation of xxx .
 ///
-/// CBPro API reference: [xxx](xxx).
+/// CBPro API reference: .
 ///
 ///
 /// # JSON Input Example
 ///
-/// ```ignore
-///
-/// ```
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(default)]
 pub struct Auction {

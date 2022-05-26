@@ -71,6 +71,7 @@ impl From<reqwest::Error> for Error {
     }
 }
 
+#[allow(unused)]
 #[derive(Error, Debug, Clone)]
 pub enum OrderError {
     #[error("Cannot apply a stop to a market order")]
@@ -290,7 +291,7 @@ impl Display for WebsocketError {
             }
             #[cfg(not(backtrace))]
             WebsocketError::TLSConnectionError { url, source } => {
-                let mut text = format!(
+                let text = format!(
                     "Error establishing TLS connection: {}\nSource error: {}\n",
                     url, source
                 );
@@ -370,7 +371,7 @@ pub struct UnexpectedEnd {
 
 impl Display for UnexpectedEnd {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut text = format!(
+        let text = format!(
             "\
         Expected size: {}\n\
         Received size: {}",

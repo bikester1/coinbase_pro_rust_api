@@ -4,10 +4,8 @@ use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::future::Future;
-use std::io::Read;
-use std::net::SocketAddr;
+
 use std::ops::Deref;
-use std::pin::Pin;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -18,9 +16,7 @@ use serde::{
     Serialize,
 };
 use tokio::io::{
-    AsyncRead,
     AsyncReadExt,
-    AsyncWrite,
     AsyncWriteExt,
 };
 use tokio::join;
@@ -63,10 +59,8 @@ use crate::datastructs::products::{
 use crate::errors::WebsocketError::{
     NoSocketAddressError,
     NoWebsocketConnectionError,
-    SocketAddressError,
     TCPConnectionError,
     TLSConnectionError,
-    URLParseError,
     WebsocketConnectionError,
     WebsocketIOError,
 };
@@ -135,7 +129,6 @@ pub struct SubscriptionBuilder {
     heartbeat_products: Vec<String>,
     ticker_products: Vec<String>,
     l2_products: Vec<String>,
-    match_products: Vec<String>,
     full_channel_products: Vec<String>,
     status_channel: bool,
 }
@@ -146,7 +139,6 @@ impl SubscriptionBuilder {
             heartbeat_products: vec![],
             ticker_products: vec![],
             l2_products: vec![],
-            match_products: vec![],
             full_channel_products: vec![],
             status_channel: false,
         }
@@ -398,6 +390,7 @@ impl AsyncIOBuilder for TokioTlsStreamBuilder {
     }
 }
 
+#[allow(unused)]
 pub(crate) async fn default_tls_stream(url: &str) -> TlsStream<TcpStream> {
     let url = Url::parse(url).unwrap();
     let sock = url.socket_addrs(|| None).unwrap();
@@ -415,7 +408,6 @@ pub(crate) async fn default_tls_stream(url: &str) -> TlsStream<TcpStream> {
 #[derive(Clone)]
 pub struct CBProAPI {
     pub client: Client,
-    coin_base_url: Arc<Mutex<String>>,
 
     /// Rate limit in requests per second
     pool: RateLimitedPool,
@@ -441,7 +433,6 @@ impl Default for CBProAPI {
             user_agent: Arc::new("Rust".to_string()),
             pool: RateLimitedPool::new(10.0),
             websocket: Arc::new(Mutex::new(None)),
-            coin_base_url: Arc::new(Mutex::new("".to_string())),
             wss_url: Arc::new(Mutex::new(
                 "https://ws-feed.exchange.coinbase.com/".to_string(),
             )),
@@ -457,7 +448,6 @@ impl CBProAPI {
             user_agent: Arc::new("Rust".to_string()),
             pool: RateLimitedPool::new(10.0),
             websocket: Arc::new(Mutex::new(None)),
-            coin_base_url: Arc::new(Mutex::new("".to_string())),
             wss_url: Arc::new(Mutex::new(
                 "https://ws-feed.exchange.coinbase.com/".to_string(),
             )),
@@ -474,7 +464,6 @@ impl CBProAPI {
             user_agent: Arc::new("Rust".to_string()),
             pool: RateLimitedPool::new(10.0),
             websocket: Arc::new(Mutex::new(None)),
-            coin_base_url: Arc::new(Mutex::new("".to_string())),
             wss_url: Arc::new(Mutex::new(
                 "https://ws-feed.exchange.coinbase.com/".to_string(),
             )),

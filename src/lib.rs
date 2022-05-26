@@ -10,7 +10,7 @@
 //!
 //! ## Quickstart Info
 //!
-//! This api has a main client struct called [CBProAPI]. This struct is like a reqwest struct and
+//! This api has a main client struct called [api::CBProAPI]. This struct is like a reqwest struct and
 //! can be cheaply copied, cloned, and passed between threads. Internally it implements its
 //! state utilizing [std::sync::Arc](https://doc.rust-lang.org/std/sync/struct.Arc.html)
 //! and [tokio::sync::Mutex](https://docs.rs/tokio/latest/tokio/sync/struct.Mutex.html).
@@ -18,8 +18,8 @@
 //!
 //! ## Future Proofing
 //!
-//! In addition to the standard usage of this api through [CBProAPI], this crate exposes a low level
-//! [CBRequestBuilder] that allows additional endpoints and custom deserialization if coinbase
+//! In addition to the standard usage of this api through [api::CBProAPI], this crate exposes a low level
+//! [requests::CBRequestBuilder] that allows additional endpoints and custom deserialization if coinbase
 //! ever changed their api, endpoints, or data formats.
 //!
 //!
@@ -68,30 +68,18 @@ mod mocked;
 
 #[cfg(all(test, feature = "mock"))]
 mod tests {
-    use std::borrow::Borrow;
-    use std::net::{
-        IpAddr,
-        SocketAddr,
-    };
-    use std::ops::Deref;
-    use std::rc::Rc;
 
-    use log::{
-        set_logger,
-        LevelFilter,
-    };
-    use mockall::Any;
+    use std::ops::Deref;
+
+    use log::LevelFilter;
+
     use reqwest::header::HeaderValue;
-    use reqwest::{
-        IntoUrl,
-        Method,
-    };
+
     use simple_logger::SimpleLogger;
     use tokio::io::{
         AsyncReadExt,
         AsyncWriteExt,
     };
-    use tokio_test::assert_err;
 
     use crate::api::{
         APIKeyData,
@@ -99,17 +87,13 @@ mod tests {
         Level,
         SubscriptionBuilder,
     };
-    use crate::datastructs::accounts::LedgerDetail;
+
     use crate::datastructs::orders::{
         MarketOrder,
         MarketOrderValue,
-        Order,
         Side,
     };
-    use crate::datastructs::websocket::SubscribeRequest;
     use crate::errors::Error;
-    use crate::errors::WebsocketError::FrameSize;
-    use crate::mocked;
     use crate::mocked::{
         CallInfo,
         MockClient,
@@ -117,14 +101,13 @@ mod tests {
         MockRequestBuilder,
         MockResponse,
         MockTcpStream,
-        MockTlsConnector,
         MockTlsStream,
     };
 
     #[tokio::test]
     async fn mocked_api_coinbase_server_error() {
         let mut respone1 = MockResponse::new();
-        let mut respone2 = MockResponse::new();
+        let respone2 = MockResponse::new();
 
         respone1.expect_text().return_once(|| {
             Ok(r#"
@@ -134,10 +117,10 @@ mod tests {
             .to_string())
         });
 
-        let mut mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
+        let mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
 
-        let mut mock_client = MockClient::new_mock(mock_request_builder.clone());
-        let mut api = CBProAPI::from_client(mock_client);
+        let mock_client = MockClient::new_mock(mock_request_builder.clone());
+        let api = CBProAPI::from_client(mock_client);
 
         let output = api.get_all_products().await;
 
@@ -156,7 +139,7 @@ mod tests {
     #[tokio::test]
     async fn mocked_api_get_all_products_minimum_required_response() {
         let mut respone1 = MockResponse::new();
-        let mut respone2 = MockResponse::new();
+        let respone2 = MockResponse::new();
 
         respone1.expect_text().return_once(|| {
             Ok(r#"
@@ -184,10 +167,10 @@ mod tests {
             .to_string())
         });
 
-        let mut mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
+        let mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
 
-        let mut mock_client = MockClient::new_mock(mock_request_builder.clone());
-        let mut api = CBProAPI::from_client(mock_client);
+        let mock_client = MockClient::new_mock(mock_request_builder.clone());
+        let api = CBProAPI::from_client(mock_client);
 
         let output = api.get_all_products().await.unwrap();
 
@@ -216,18 +199,21 @@ mod tests {
     #[tokio::test]
     async fn mocked_api_get_all_products_json_header() {
         let mut respone1 = MockResponse::new();
-        let mut respone2 = MockResponse::new();
+        let respone2 = MockResponse::new();
 
         respone1
             .expect_text()
             .return_once(|| Ok(r#"[{"id":"Causes Error",}]"#.to_string()));
 
-        let mut mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
+        let mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
 
-        let mut mock_client = MockClient::new_mock(mock_request_builder.clone());
-        let mut api = CBProAPI::from_client(mock_client);
+        let mock_client = MockClient::new_mock(mock_request_builder.clone());
+        let api = CBProAPI::from_client(mock_client);
 
-        let output = api.get_all_products().await;
+        match api.get_all_products().await {
+            Ok(_) => {}
+            Err(_) => {}
+        };
 
         let header_calls: Vec<CallInfo> = mock_request_builder
             .call_info
@@ -247,7 +233,7 @@ mod tests {
     #[tokio::test]
     async fn mocked_api_get_all_products_all_fields() {
         let mut respone1 = MockResponse::new();
-        let mut respone2 = MockResponse::new();
+        let respone2 = MockResponse::new();
 
         respone1.expect_text().return_once(|| {
             Ok(r#"
@@ -278,10 +264,10 @@ mod tests {
             .to_string())
         });
 
-        let mut mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
+        let mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
 
-        let mut mock_client = MockClient::new_mock(mock_request_builder.clone());
-        let mut api = CBProAPI::from_client(mock_client);
+        let mock_client = MockClient::new_mock(mock_request_builder.clone());
+        let api = CBProAPI::from_client(mock_client);
 
         let output = api.get_all_products().await.unwrap();
 
@@ -295,7 +281,7 @@ mod tests {
     #[tokio::test]
     async fn mocked_api_get_product_minimum_required_response() {
         let mut respone1 = MockResponse::new();
-        let mut respone2 = MockResponse::new();
+        let respone2 = MockResponse::new();
 
         respone1.expect_text().return_once(|| {
             Ok(r#"
@@ -321,10 +307,10 @@ mod tests {
             .to_string())
         });
 
-        let mut mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
+        let mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
 
-        let mut mock_client = MockClient::new_mock(mock_request_builder.clone());
-        let mut api = CBProAPI::from_client(mock_client);
+        let mock_client = MockClient::new_mock(mock_request_builder.clone());
+        let api = CBProAPI::from_client(mock_client);
 
         let output = api.get_product("MyProduct".to_string()).await.unwrap();
 
@@ -352,18 +338,18 @@ mod tests {
     #[tokio::test]
     async fn mocked_api_get_product_path_check() {
         let mut respone1 = MockResponse::new();
-        let mut respone2 = MockResponse::new();
+        let respone2 = MockResponse::new();
 
         respone1
             .expect_text()
             .return_once(|| Ok(r#"{"id":"UMA-EUR"}"#.to_string()));
 
-        let mut mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
+        let mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
 
-        let mut mock_client = MockClient::new_mock(mock_request_builder.clone());
-        let mut api = CBProAPI::from_client(mock_client.clone());
+        let mock_client = MockClient::new_mock(mock_request_builder.clone());
+        let api = CBProAPI::from_client(mock_client.clone());
 
-        let output = api.get_product("MyProduct".to_string()).await;
+        api.get_product("MyProduct".to_string()).await.unwrap();
 
         assert!(mock_client
             .requested_url
@@ -374,7 +360,7 @@ mod tests {
     #[tokio::test]
     async fn mocked_api_get_product_book_minimum_response() {
         let mut respone1 = MockResponse::new();
-        let mut respone2 = MockResponse::new();
+        let respone2 = MockResponse::new();
 
         respone1.expect_text().return_once(|| {
             Ok(r#"
@@ -387,10 +373,10 @@ mod tests {
             .to_string())
         });
 
-        let mut mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
+        let mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
 
-        let mut mock_client = MockClient::new_mock(mock_request_builder.clone());
-        let mut api = CBProAPI::from_client(mock_client);
+        let mock_client = MockClient::new_mock(mock_request_builder.clone());
+        let api = CBProAPI::from_client(mock_client);
 
         let output = api
             .get_product_book("MyProduct".to_string(), Some(Level::One))
@@ -407,7 +393,7 @@ mod tests {
     #[tokio::test]
     async fn mocked_api_get_product_book_minimum_response_2() {
         let mut respone1 = MockResponse::new();
-        let mut respone2 = MockResponse::new();
+        let respone2 = MockResponse::new();
 
         respone1.expect_text().return_once(|| {
             Ok(r#"
@@ -430,10 +416,10 @@ mod tests {
             .to_string())
         });
 
-        let mut mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
+        let mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
 
-        let mut mock_client = MockClient::new_mock(mock_request_builder.clone());
-        let mut api = CBProAPI::from_client(mock_client);
+        let mock_client = MockClient::new_mock(mock_request_builder.clone());
+        let api = CBProAPI::from_client(mock_client);
 
         let output = api
             .get_product_book("MyProduct".to_string(), Some(Level::One))
@@ -457,7 +443,7 @@ mod tests {
     #[tokio::test]
     async fn mocked_api_get_fees() {
         let mut respone1 = MockResponse::new();
-        let mut respone2 = MockResponse::new();
+        let respone2 = MockResponse::new();
 
         respone1.expect_text().return_once(|| {
             Ok(r#"
@@ -470,10 +456,10 @@ mod tests {
             .to_string())
         });
 
-        let mut mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
+        let mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
 
-        let mut mock_client = MockClient::new_mock(mock_request_builder.clone());
-        let mut api = CBProAPI::from_client(mock_client);
+        let mock_client = MockClient::new_mock(mock_request_builder.clone());
+        let api = CBProAPI::from_client(mock_client);
 
         let account = APIKeyData {
             key: base64::encode("API KEY"),
@@ -491,7 +477,7 @@ mod tests {
     #[tokio::test]
     async fn mocked_api_get_accounts() {
         let mut respone1 = MockResponse::new();
-        let mut respone2 = MockResponse::new();
+        let respone2 = MockResponse::new();
 
         respone1.expect_text().return_once(|| {
             Ok(r#"[
@@ -508,10 +494,10 @@ mod tests {
             .to_string())
         });
 
-        let mut mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
+        let mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
 
-        let mut mock_client = MockClient::new_mock(mock_request_builder.clone());
-        let mut api = CBProAPI::from_client(mock_client);
+        let mock_client = MockClient::new_mock(mock_request_builder.clone());
+        let api = CBProAPI::from_client(mock_client);
 
         let account = APIKeyData {
             key: base64::encode("API KEY"),
@@ -531,7 +517,7 @@ mod tests {
     #[tokio::test]
     async fn mocked_api_get_account() {
         let mut respone1 = MockResponse::new();
-        let mut respone2 = MockResponse::new();
+        let respone2 = MockResponse::new();
 
         respone1.expect_text().return_once(|| {
             Ok(r#"
@@ -548,10 +534,10 @@ mod tests {
             .to_string())
         });
 
-        let mut mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
+        let mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
 
-        let mut mock_client = MockClient::new_mock(mock_request_builder.clone());
-        let mut api = CBProAPI::from_client(mock_client);
+        let mock_client = MockClient::new_mock(mock_request_builder.clone());
+        let api = CBProAPI::from_client(mock_client);
 
         let account = APIKeyData {
             key: base64::encode("API KEY"),
@@ -570,7 +556,7 @@ mod tests {
 
     #[tokio::test]
     async fn mocked_api_get_account_holds() {
-        let mut respone1 = MockResponse::new();
+        let respone1 = MockResponse::new();
         let mut respone2 = MockResponse::new();
         let mut headers = MockHeaderMap::new();
 
@@ -590,10 +576,10 @@ mod tests {
         });
         respone2.expect_headers().return_const(headers);
 
-        let mut mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
+        let mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
 
-        let mut mock_client = MockClient::new_mock(mock_request_builder.clone());
-        let mut api = CBProAPI::from_client(mock_client);
+        let mock_client = MockClient::new_mock(mock_request_builder.clone());
+        let api = CBProAPI::from_client(mock_client);
 
         let account = APIKeyData {
             key: base64::encode("API KEY"),
@@ -609,7 +595,7 @@ mod tests {
 
     #[tokio::test]
     async fn mocked_api_get_account_ledger() {
-        let mut respone1 = MockResponse::new();
+        let respone1 = MockResponse::new();
         let mut respone2 = MockResponse::new();
         let mut headers = MockHeaderMap::new();
 
@@ -679,10 +665,10 @@ mod tests {
         });
         respone2.expect_headers().return_const(headers);
 
-        let mut mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
+        let mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
 
-        let mut mock_client = MockClient::new_mock(mock_request_builder.clone());
-        let mut api = CBProAPI::from_client(mock_client);
+        let mock_client = MockClient::new_mock(mock_request_builder.clone());
+        let api = CBProAPI::from_client(mock_client);
 
         let account = APIKeyData {
             key: base64::encode("API KEY"),
@@ -703,7 +689,7 @@ mod tests {
 
     #[tokio::test]
     async fn mocked_api_get_account_transfers() {
-        let mut respone1 = MockResponse::new();
+        let respone1 = MockResponse::new();
         let mut respone2 = MockResponse::new();
         let mut headers = MockHeaderMap::new();
 
@@ -757,10 +743,10 @@ mod tests {
         });
         respone2.expect_headers().return_const(headers);
 
-        let mut mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
+        let mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
 
-        let mut mock_client = MockClient::new_mock(mock_request_builder.clone());
-        let mut api = CBProAPI::from_client(mock_client);
+        let mock_client = MockClient::new_mock(mock_request_builder.clone());
+        let api = CBProAPI::from_client(mock_client);
 
         let account = APIKeyData {
             key: base64::encode("API KEY"),
@@ -800,10 +786,10 @@ mod tests {
         });
         respone2.expect_headers().return_const(headers);
 
-        let mut mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
+        let mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
 
-        let mut mock_client = MockClient::new_mock(mock_request_builder.clone());
-        let mut api = CBProAPI::from_client(mock_client);
+        let mock_client = MockClient::new_mock(mock_request_builder.clone());
+        let api = CBProAPI::from_client(mock_client);
 
         let account = APIKeyData {
             key: base64::encode("API KEY"),
@@ -841,10 +827,10 @@ mod tests {
         });
         respone2.expect_headers().return_const(headers);
 
-        let mut mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
+        let mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
 
-        let mut mock_client = MockClient::new_mock(mock_request_builder.clone());
-        let mut api = CBProAPI::from_client(mock_client);
+        let mock_client = MockClient::new_mock(mock_request_builder.clone());
+        let api = CBProAPI::from_client(mock_client);
 
         let output = api.get_currencies().await.unwrap();
 
@@ -876,14 +862,12 @@ mod tests {
         });
         respone2.expect_headers().return_const(headers);
 
-        let mut mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
+        let mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
 
-        let mut mock_client = MockClient::new_mock(mock_request_builder.clone());
-        let mut api = CBProAPI::from_client(mock_client);
+        let mock_client = MockClient::new_mock(mock_request_builder.clone());
+        let api = CBProAPI::from_client(mock_client);
 
-        let output = api.get_currency("mine".to_string()).await.unwrap();
-
-        let acct = output;
+        api.get_currency("mine".to_string()).await.unwrap();
     }
 
     #[tokio::test]
@@ -905,10 +889,10 @@ mod tests {
             .return_once(|| Ok(r#"{"my json": 123}"#.to_string()));
         respone2.expect_headers().return_const(headers);
 
-        let mut mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
+        let mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
 
-        let mut mock_client = MockClient::new_mock(mock_request_builder.clone());
-        let mut api = CBProAPI::from_client(mock_client);
+        let mock_client = MockClient::new_mock(mock_request_builder.clone());
+        let api = CBProAPI::from_client(mock_client);
 
         let output = api.get_conversion(account, "", "").await;
         assert!(output.is_err());
@@ -916,7 +900,7 @@ mod tests {
 
     #[tokio::test]
     async fn mocked_api_get_fills_invalid() {
-        let mut respone1 = MockResponse::new();
+        let respone1 = MockResponse::new();
         let mut respone2 = MockResponse::new();
         let mut headers = MockHeaderMap::new();
 
@@ -933,10 +917,10 @@ mod tests {
             .return_once(|| Ok(r#"{"my json": 123}"#.to_string()));
         respone2.expect_headers().return_const(headers);
 
-        let mut mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
+        let mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
 
-        let mut mock_client = MockClient::new_mock(mock_request_builder.clone());
-        let mut api = CBProAPI::from_client(mock_client);
+        let mock_client = MockClient::new_mock(mock_request_builder.clone());
+        let api = CBProAPI::from_client(mock_client);
 
         let output = api
             .get_fills(
@@ -968,9 +952,9 @@ mod tests {
             .return_once(|| Ok(r#"{"my json": 123}"#.to_string()));
         respone2.expect_headers().return_const(headers);
 
-        let mut mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
-        let mut mock_client = MockClient::new_mock(mock_request_builder.clone());
-        let mut api = CBProAPI::from_client(mock_client);
+        let mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
+        let mock_client = MockClient::new_mock(mock_request_builder.clone());
+        let api = CBProAPI::from_client(mock_client);
 
         let order = MarketOrder::new("".to_string(), Side::BUY, MarketOrderValue::Size(0.1));
 
@@ -997,9 +981,9 @@ mod tests {
             .return_once(|| Ok(r#"{"my json": 123}"#.to_string()));
         respone2.expect_headers().return_const(headers);
 
-        let mut mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
-        let mut mock_client = MockClient::new_mock(mock_request_builder.clone());
-        let mut api = CBProAPI::from_client(mock_client);
+        let mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
+        let mock_client = MockClient::new_mock(mock_request_builder.clone());
+        let api = CBProAPI::from_client(mock_client);
 
         let output = api.get_single_order(account, "".to_string()).await;
         assert!(output.is_err());
@@ -1007,7 +991,7 @@ mod tests {
 
     #[tokio::test]
     async fn mocked_api_get_orders_invalid() {
-        let mut respone1 = MockResponse::new();
+        let respone1 = MockResponse::new();
         let mut respone2 = MockResponse::new();
         let mut headers = MockHeaderMap::new();
 
@@ -1024,9 +1008,9 @@ mod tests {
             .return_once(|| Ok(r#"{"my json": 123}"#.to_string()));
         respone2.expect_headers().return_const(headers);
 
-        let mut mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
-        let mut mock_client = MockClient::new_mock(mock_request_builder.clone());
-        let mut api = CBProAPI::from_client(mock_client);
+        let mock_request_builder = MockRequestBuilder::new_mock(vec![respone1, respone2]);
+        let mock_client = MockClient::new_mock(mock_request_builder.clone());
+        let api = CBProAPI::from_client(mock_client);
 
         let output = api
             .get_orders(account, Some("".to_string()), Some("".to_string()))
@@ -1070,27 +1054,15 @@ mod tests {
         assert!(serialized.contains(r#""name":"full","product_ids":[""]"#));
     }
 
-    pub struct FrameInfo<'a> {
-        fin: bool,
-        opcode: u8,
-        masked: bool,
-        length: u64,
-        mask: &'a [u8],
-        payload: &'a [u8],
-    }
-
-    pub struct FrameTestCase<'a> {
-        raw_data: &'a [u8],
-        expected_info: FrameInfo<'a>,
-    }
-
     #[tokio::test]
     async fn mock_stream_tc1() {
-        SimpleLogger::new().with_level(LevelFilter::Trace).init();
-        let addr = SocketAddr::new(IpAddr::from([127, 0, 0, 1]), 307);
+        match SimpleLogger::new().with_level(LevelFilter::Trace).init() {
+            Ok(_) => {}
+            Err(_) => {}
+        };
+
         let mocked_tcp = MockTcpStream::new();
         let mut mock_tls = MockTlsStream::new(&mocked_tcp);
-        let mock_connector = MockTlsConnector::new(&mock_tls);
 
         mock_tls.expect_poll_write(|buf| buf == vec![0, 0, 0].as_slice());
         let out = mock_tls.write(vec![0, 0, 0].as_slice()).await.unwrap();
@@ -1099,11 +1071,13 @@ mod tests {
 
     #[tokio::test]
     async fn mock_stream_tc2() {
-        SimpleLogger::new().with_level(LevelFilter::Trace).init();
-        let addr = SocketAddr::new(IpAddr::from([127, 0, 0, 1]), 307);
+        match SimpleLogger::new().with_level(LevelFilter::Trace).init() {
+            Ok(_) => {}
+            Err(_) => {}
+        };
+
         let mocked_tcp = MockTcpStream::new();
         let mut mock_tls = MockTlsStream::new(&mocked_tcp);
-        let mock_connector = MockTlsConnector::new(&mock_tls);
 
         let output = vec![0, 1, 1];
         mock_tls.expect_poll_read(output.clone());
@@ -1157,30 +1131,19 @@ mod tests {
 
 #[cfg(all(test, feature = "mock"))]
 mod websocket_stream_tests {
-    use log::{
-        error,
-        LevelFilter,
-    };
+    use log::LevelFilter;
     use reqwest::Url;
     use simple_logger::SimpleLogger;
-    use std::collections::vec_deque::VecDeque;
-    use std::ops::Deref;
     use tokio::io::{
-        AsyncRead,
         AsyncReadExt,
         AsyncWriteExt,
     };
-    use tokio::net::TcpStream;
-    use tokio_native_tls::native_tls::TlsConnector as NativeTlsConnector;
-    use tokio_native_tls::TlsConnector;
 
     use crate::api::{
-        default_tls_stream,
         CBProAPI,
         SubscriptionBuilder,
     };
-    use crate::datastructs::websocket::SubscribeRequest;
-    use crate::errors::WebsocketError;
+
     use crate::mocked::{
         MockClient,
         MockIOBuilder,
@@ -1189,9 +1152,7 @@ mod websocket_stream_tests {
     };
     use crate::websocket_lite::{
         FrameParser,
-        ParsedFrame,
         ParserState,
-        WebsocketStream,
         WebsocketStreamConnector,
     };
 
@@ -1228,7 +1189,7 @@ mod websocket_stream_tests {
     }
 
     pub(crate) fn frame_fin_16_0mask_0_long() -> Vec<u8> {
-        let mut return_val: Vec<u8> = vec![
+        let return_val: Vec<u8> = vec![
             0b10001111, 0b11111111, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
             0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
         ];
@@ -1236,7 +1197,7 @@ mod websocket_stream_tests {
     }
 
     pub(crate) fn frame_fin_16_0mask_0_medium() -> Vec<u8> {
-        let mut return_val: Vec<u8> = vec![
+        let return_val: Vec<u8> = vec![
             0b10001111, 0b11111110, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
             0b00000000,
         ];
@@ -1244,12 +1205,12 @@ mod websocket_stream_tests {
     }
 
     pub(crate) fn frame_fin_16_1_short() -> Vec<u8> {
-        let mut return_val: Vec<u8> = vec![0b10001111, 0b00000001, 0x00];
+        let return_val: Vec<u8> = vec![0b10001111, 0b00000001, 0x00];
         return_val
     }
 
     pub(crate) fn frame_fin_16_1_long() -> Vec<u8> {
-        let mut return_val: Vec<u8> = vec![
+        let return_val: Vec<u8> = vec![
             0b10001111, 0b01111111, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
             0b00000000, 0b00000000, 0b00000001, 0x00,
         ];
@@ -1257,10 +1218,11 @@ mod websocket_stream_tests {
     }
 
     pub(crate) fn frame_fin_16_1_medium() -> Vec<u8> {
-        let mut return_val: Vec<u8> = vec![0b10001111, 0b01111110, 0b00000000, 0b00000001, 0x00];
+        let return_val: Vec<u8> = vec![0b10001111, 0b01111110, 0b00000000, 0b00000001, 0x00];
         return_val
     }
 
+    #[allow(unused)]
     pub(crate) fn frame_0() -> Vec<u8> {
         vec![0x00, 0x00]
     }
@@ -1271,7 +1233,10 @@ mod websocket_stream_tests {
 
     #[tokio::test]
     async fn websocket_stream_tc1() {
-        SimpleLogger::new().with_level(LevelFilter::Trace).init();
+        match SimpleLogger::new().with_level(LevelFilter::Trace).init() {
+            Ok(_) => {}
+            Err(_) => {}
+        };
         let mut stream = MockStream::new(&[0, 1, 2, 3]);
 
         assert_eq!(stream.read_u8().await.unwrap(), 0);
@@ -1282,14 +1247,17 @@ mod websocket_stream_tests {
 
     #[tokio::test]
     async fn websocket_stream_tc2() {
-        SimpleLogger::new().with_level(LevelFilter::Trace).init();
+        match SimpleLogger::new().with_level(LevelFilter::Trace).init() {
+            Ok(_) => {}
+            Err(_) => {}
+        };
 
         let mut handshake_response = default_websocket_upgrade_resp();
 
-        let mut frame: Vec<u8> = frame_fin_16_0mask_256();
+        let frame: Vec<u8> = frame_fin_16_0mask_256();
 
         handshake_response.append(&mut frame.clone());
-        let mut mock_stream = MockStream::new(&handshake_response);
+        let mock_stream = MockStream::new(&handshake_response);
 
         //let stream = default_tls_stream("https://ws-feed.exchange.coinbase.com/").await;
 
@@ -1310,14 +1278,17 @@ mod websocket_stream_tests {
 
     #[tokio::test]
     async fn websocket_stream_tc3() {
-        SimpleLogger::new().with_level(LevelFilter::Trace).init();
+        match SimpleLogger::new().with_level(LevelFilter::Trace).init() {
+            Ok(_) => {}
+            Err(_) => {}
+        };
 
         let mut handshake_response = default_websocket_upgrade_resp();
 
-        let mut frame: Vec<u8> = frame_fin_0();
+        let frame: Vec<u8> = frame_fin_0();
 
         handshake_response.append(&mut frame.clone());
-        let mut mock_stream = MockStream::new(&handshake_response);
+        let mock_stream = MockStream::new(&handshake_response);
 
         //let stream = default_tls_stream("https://ws-feed.exchange.coinbase.com/").await;
 
@@ -1338,14 +1309,17 @@ mod websocket_stream_tests {
 
     #[tokio::test]
     async fn websocket_stream_tc4() {
-        SimpleLogger::new().with_level(LevelFilter::Trace).init();
+        match SimpleLogger::new().with_level(LevelFilter::Trace).init() {
+            Ok(_) => {}
+            Err(_) => {}
+        };
 
         let mut handshake_response = default_websocket_upgrade_resp();
 
-        let mut frame: Vec<u8> = frame_fin_16_0mask_256_long();
+        let frame: Vec<u8> = frame_fin_16_0mask_256_long();
 
         handshake_response.append(&mut frame.clone());
-        let mut mock_stream = MockStream::new(&handshake_response);
+        let mock_stream = MockStream::new(&handshake_response);
 
         //let stream = default_tls_stream("https://ws-feed.exchange.coinbase.com/").await;
 
@@ -1366,14 +1340,17 @@ mod websocket_stream_tests {
 
     #[tokio::test]
     async fn websocket_stream_tc5() {
-        SimpleLogger::new().with_level(LevelFilter::Trace).init();
+        match SimpleLogger::new().with_level(LevelFilter::Trace).init() {
+            Ok(_) => {}
+            Err(_) => {}
+        };
 
         let mut handshake_response = default_websocket_upgrade_resp();
 
-        let mut frame: Vec<u8> = frame_fin_16_0mask_0_long();
+        let frame: Vec<u8> = frame_fin_16_0mask_0_long();
 
         handshake_response.append(&mut frame.clone());
-        let mut mock_stream = MockStream::new(&handshake_response);
+        let mock_stream = MockStream::new(&handshake_response);
 
         //let stream = default_tls_stream("https://ws-feed.exchange.coinbase.com/").await;
 
@@ -1394,14 +1371,17 @@ mod websocket_stream_tests {
 
     #[tokio::test]
     async fn websocket_stream_tc6() {
-        SimpleLogger::new().with_level(LevelFilter::Trace).init();
+        match SimpleLogger::new().with_level(LevelFilter::Trace).init() {
+            Ok(_) => {}
+            Err(_) => {}
+        };
 
         let mut handshake_response = default_websocket_upgrade_resp();
 
-        let mut frame: Vec<u8> = frame_fin_16_0mask_0_medium();
+        let frame: Vec<u8> = frame_fin_16_0mask_0_medium();
 
         handshake_response.append(&mut frame.clone());
-        let mut mock_stream = MockStream::new(&handshake_response);
+        let mock_stream = MockStream::new(&handshake_response);
 
         //let stream = default_tls_stream("https://ws-feed.exchange.coinbase.com/").await;
 
@@ -1422,14 +1402,17 @@ mod websocket_stream_tests {
 
     #[tokio::test]
     async fn websocket_stream_tc7() {
-        SimpleLogger::new().with_level(LevelFilter::Trace).init();
+        match SimpleLogger::new().with_level(LevelFilter::Trace).init() {
+            Ok(_) => {}
+            Err(_) => {}
+        };
 
         let mut handshake_response = default_websocket_upgrade_resp();
 
-        let mut frame: Vec<u8> = frame_fin_16_1_short();
+        let frame: Vec<u8> = frame_fin_16_1_short();
 
         handshake_response.append(&mut frame.clone());
-        let mut mock_stream = MockStream::new(&handshake_response);
+        let mock_stream = MockStream::new(&handshake_response);
 
         //let stream = default_tls_stream("https://ws-feed.exchange.coinbase.com/").await;
 
@@ -1450,14 +1433,17 @@ mod websocket_stream_tests {
 
     #[tokio::test]
     async fn websocket_stream_tc8() {
-        SimpleLogger::new().with_level(LevelFilter::Trace).init();
+        match SimpleLogger::new().with_level(LevelFilter::Trace).init() {
+            Ok(_) => {}
+            Err(_) => {}
+        };
 
         let mut handshake_response = default_websocket_upgrade_resp();
 
-        let mut frame: Vec<u8> = frame_fin_16_1_medium();
+        let frame: Vec<u8> = frame_fin_16_1_medium();
 
         handshake_response.append(&mut frame.clone());
-        let mut mock_stream = MockStream::new(&handshake_response);
+        let mock_stream = MockStream::new(&handshake_response);
 
         //let stream = default_tls_stream("https://ws-feed.exchange.coinbase.com/").await;
 
@@ -1478,14 +1464,17 @@ mod websocket_stream_tests {
 
     #[tokio::test]
     async fn websocket_stream_tc9() {
-        SimpleLogger::new().with_level(LevelFilter::Trace).init();
+        match SimpleLogger::new().with_level(LevelFilter::Trace).init() {
+            Ok(_) => {}
+            Err(_) => {}
+        };
 
         let mut handshake_response = default_websocket_upgrade_resp();
 
-        let mut frame: Vec<u8> = frame_fin_16_1_long();
+        let frame: Vec<u8> = frame_fin_16_1_long();
 
         handshake_response.append(&mut frame.clone());
-        let mut mock_stream = MockStream::new(&handshake_response);
+        let mock_stream = MockStream::new(&handshake_response);
 
         //let stream = default_tls_stream("https://ws-feed.exchange.coinbase.com/").await;
 
@@ -1531,7 +1520,7 @@ mod websocket_stream_tests {
         let stream_builder = MockIOBuilder::new(&stream);
         let client = MockClient::new_mock(MockRequestBuilder::new_mock(vec![]));
 
-        let api = CBProAPI::from_client_and_io_builder(client, stream_builder.clone());
+        CBProAPI::from_client_and_io_builder(client, stream_builder.clone());
     }
 
     pub(crate) fn websocket_sub_response() -> Vec<u8> {
@@ -1553,8 +1542,8 @@ mod websocket_stream_tests {
 
     #[tokio::test]
     async fn api_websocket_sub_tc2() {
-        let mut test_resp = websocket_heartbeat_message();
-        let mut sub_resp = websocket_sub_response();
+        let test_resp = websocket_heartbeat_message();
+        let sub_resp = websocket_sub_response();
         let mut stream = MockStream::new(&sub_resp);
         stream.append_response(&test_resp).await;
 
@@ -1577,6 +1566,7 @@ mod websocket_stream_tests {
             .unwrap()
             .clone()
             .into_iter()
+            .flatten()
             .collect::<Vec<u8>>();
         assert_eq!(String::from_utf8(writes).unwrap(), "{\"type\":\"subscribe\",\"channels\":[{\"name\":\"full\",\"product_ids\":[\"my_product\"]}]}");
 
@@ -1589,8 +1579,8 @@ mod websocket_stream_tests {
 
     #[tokio::test]
     async fn api_websocket_status() {
-        let mut test_resp = websocket_status_message();
-        let mut sub_resp = websocket_sub_response();
+        let test_resp = websocket_status_message();
+        let sub_resp = websocket_sub_response();
         let mut stream = MockStream::new(&sub_resp);
         stream.append_response(&test_resp).await;
 
@@ -1613,6 +1603,7 @@ mod websocket_stream_tests {
             .unwrap()
             .clone()
             .into_iter()
+            .flatten()
             .collect::<Vec<u8>>();
         assert_eq!(String::from_utf8(writes).unwrap(), "{\"type\":\"subscribe\",\"channels\":[{\"name\":\"full\",\"product_ids\":[\"my_product\"]}]}");
 
@@ -1625,8 +1616,8 @@ mod websocket_stream_tests {
 
     #[tokio::test]
     async fn api_websocket_ticker() {
-        let mut test_resp = websocket_ticker_message();
-        let mut sub_resp = websocket_sub_response();
+        let test_resp = websocket_ticker_message();
+        let sub_resp = websocket_sub_response();
         let mut stream = MockStream::new(&sub_resp);
         stream.append_response(&test_resp).await;
 
@@ -1649,6 +1640,7 @@ mod websocket_stream_tests {
             .unwrap()
             .clone()
             .into_iter()
+            .flatten()
             .collect::<Vec<u8>>();
         assert_eq!(String::from_utf8(writes).unwrap(), "{\"type\":\"subscribe\",\"channels\":[{\"name\":\"full\",\"product_ids\":[\"my_product\"]}]}");
 
@@ -1665,7 +1657,7 @@ mod websocket_stream_tests {
 
     #[tokio::test]
     async fn api_websocket_snapshot() {
-        let mut sub_resp = websocket_sub_response();
+        let sub_resp = websocket_sub_response();
         let mut stream = MockStream::new(&sub_resp);
         stream
             .append_response(&websocket_l2snapshot_message())
@@ -1691,6 +1683,7 @@ mod websocket_stream_tests {
             .unwrap()
             .clone()
             .into_iter()
+            .flatten()
             .collect::<Vec<u8>>();
         assert_eq!(
             String::from_utf8(writes).unwrap(),
@@ -1714,7 +1707,7 @@ mod websocket_stream_tests {
 
     #[tokio::test]
     async fn api_websocket_l3() {
-        let mut sub_resp = websocket_sub_response();
+        let sub_resp = websocket_sub_response();
         let mut stream = MockStream::new(&sub_resp);
         stream.append_response(&websocket_l3limit_message()).await;
         stream.append_response(&websocket_l3match_message()).await;
@@ -1739,6 +1732,7 @@ mod websocket_stream_tests {
             .unwrap()
             .clone()
             .into_iter()
+            .flatten()
             .collect::<Vec<u8>>();
         assert_eq!(
             String::from_utf8(writes).unwrap(),
@@ -1753,7 +1747,7 @@ mod websocket_stream_tests {
     #[tokio::test]
     async fn websocket_stream_test() {
         let mut mock_stream = MockStream::new(&default_websocket_upgrade_resp());
-        mock_stream.append_response("response 2".as_bytes());
+        mock_stream.append_response("response 2".as_bytes()).await;
         let websocket_connector = WebsocketStreamConnector::new_no_sec();
 
         let url = Url::parse("https://www.coinbase.com").unwrap();
@@ -1765,41 +1759,14 @@ mod websocket_stream_tests {
 
         let mut parser = FrameParser::default();
 
-        let write = mock_stream.writes.lock().unwrap().iter();
         let written = mock_stream.writes.lock().unwrap();
-        let vector = Vec::from_iter(written.clone().into_iter());
-        let mut queue = VecDeque::new();
-        let mut out_vec = Vec::new();
-        let mut skip = false;
-        for byte in vector {
-            if skip {
-                out_vec.push(byte.clone())
-            }
 
-            queue.push_back(byte.clone());
-
-            if queue.len() > 4 {
-                queue.pop_front();
-            }
-
-            let vec = Vec::from_iter(queue.iter().map(|byte| byte.clone()));
-            if &vec == "\r\n\r\n".as_bytes() {
-                skip = true;
-            }
-        }
-
-        for byte in out_vec {
-            match parser.process_byte(&byte) {
-                Ok(frame) => match frame {
-                    None => {}
-                    Some(frame2) => {
-                        assert_eq!(
-                            String::from_utf8_lossy(&frame2.payload),
-                            "test write".to_string()
-                        );
-                    }
-                },
-                Err(_) => {}
+        for byte in &written[1] {
+            match parser.process_byte(&byte).unwrap() {
+                None => {}
+                Some(frame) => {
+                    dbg!(String::from_utf8_lossy(&frame.payload));
+                }
             }
         }
     }

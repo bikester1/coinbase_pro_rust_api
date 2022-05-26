@@ -2,24 +2,17 @@
 use std::backtrace::Backtrace;
 use std::cmp::min;
 use std::collections::vec_deque::VecDeque;
-use std::collections::HashMap;
 use std::fmt::{
     Display,
     Formatter,
 };
-use std::future::Future;
 use std::io::{
     Error,
     ErrorKind,
 };
-use std::ops::{
-    DerefMut,
-    Index,
-};
 use std::pin::Pin;
 use std::sync::{
     Arc,
-    LockResult,
     Mutex,
     MutexGuard,
 };
@@ -27,26 +20,16 @@ use std::task::{
     Context,
     Poll,
 };
-use std::time::Duration;
 use std::{
     io,
     mem,
 };
 
-use async_trait::async_trait;
-use log::{
-    debug,
-    error,
-    trace,
-};
 use rand::{
     RngCore,
     SeedableRng,
 };
-use reqwest::{
-    IntoUrl,
-    Url,
-};
+use reqwest::Url;
 use sha1::{
     Digest,
     Sha1,
@@ -62,18 +45,15 @@ use tokio::io::{
 use crate::errors::WebsocketError::{
     NoDomainError,
     TLSConnectionError,
-    URLParseError,
-    WebsocketIOError,
 };
 use crate::errors::{
     IncorrectMaskSize,
-    UnexpectedEnd,
     WebsocketError,
 };
 
 pub struct ParsedFrame {
-    final_flag: bool,
-    mask: Option<[u8; 4]>,
+    _final_flag: bool,
+    _mask: Option<[u8; 4]>,
     pub(crate) payload: Vec<u8>,
 }
 
@@ -109,9 +89,9 @@ pub enum FrameLength {
 impl FrameLength {
     pub fn to_vec(self) -> Vec<u8> {
         match self {
-            FrameLength::Short(mut bytes) => bytes.to_vec(),
-            FrameLength::Medium(mut bytes) => bytes.to_vec(),
-            FrameLength::Long(mut bytes) => bytes.to_vec(),
+            FrameLength::Short(bytes) => bytes.to_vec(),
+            FrameLength::Medium(bytes) => bytes.to_vec(),
+            FrameLength::Long(bytes) => bytes.to_vec(),
         }
     }
 }
@@ -141,7 +121,7 @@ impl Frame {
         payload
             .into_iter()
             .enumerate()
-            .for_each(|(index, mut byte)| data.push(byte ^ mask[index % 4]));
+            .for_each(|(index, byte)| data.push(byte ^ mask[index % 4]));
     }
 }
 
@@ -198,8 +178,8 @@ impl FrameParser {
         self.length = 0;
 
         Ok(ParsedFrame {
-            final_flag: self.final_frame,
-            mask: self.mask,
+            _final_flag: self.final_frame,
+            _mask: self.mask,
             payload,
         })
     }
@@ -417,11 +397,6 @@ macro_rules! ok_or_return_poll_poison {
 
 impl<T: AsyncRead + AsyncWrite + Unpin + Send> AsyncIO for T {}
 
-pub enum WebsocketState {
-    HTTP,
-    Websocket,
-}
-
 pub struct WebsocketStreamConnector {
     check_sec_accept: bool,
 }
@@ -510,7 +485,6 @@ impl WebsocketStreamConnector {
         Ok(WebsocketStream {
             stream,
             read_parser: Arc::new(Mutex::new(FrameParser::default())),
-            state: Arc::new(Mutex::new(WebsocketState::HTTP)),
             frame_buffer: Arc::new(Mutex::new(VecDeque::new())),
         })
     }
@@ -522,7 +496,7 @@ impl WebsocketStreamConnector {
         let mut output = String::new();
 
         loop {
-            let mut byte = stream.read_u8().await.ok()?;
+            let byte = stream.read_u8().await.ok()?;
             output.push(char::from(byte));
 
             if output.ends_with("\r\n\r\n") {
@@ -556,7 +530,6 @@ where
 {
     stream: T,
     read_parser: Arc<Mutex<FrameParser>>,
-    state: Arc<Mutex<WebsocketState>>,
     frame_buffer: Arc<Mutex<VecDeque<VecDeque<u8>>>>,
 }
 
@@ -564,6 +537,7 @@ impl<T> WebsocketStream<T>
 where
     T: AsyncIO,
 {
+    #[allow(unused)]
     fn take_buffer_lock(&mut self) -> Result<MutexGuard<VecDeque<VecDeque<u8>>>, std::io::Error> {
         match self.frame_buffer.lock() {
             Ok(lock) => Ok(lock),
@@ -587,7 +561,7 @@ where
         // Poll read until a frame is parsed.
         loop {
             {
-                let mut frame_buffer = ok_or_return_poll_poison!(self.frame_buffer.lock());
+                let frame_buffer = ok_or_return_poll_poison!(self.frame_buffer.lock());
 
                 // If we have a frame to give, break and give it to the reader.
                 if frame_buffer.len() > 0 {
@@ -609,7 +583,7 @@ where
             for byte in internal_buffer.filled() {
                 let maybe_frame = match lock.process_byte(byte) {
                     Ok(maybe_frame) => maybe_frame,
-                    Err(err) => {
+                    Err(_) => {
                         return Poll::Ready(Err(io::Error::from(ErrorKind::Other)));
                     }
                 };
@@ -674,8 +648,8 @@ where
 
         let mut parser = FrameParser::default();
         let mut parsed_frame: ParsedFrame = ParsedFrame {
-            final_flag: false,
-            mask: None,
+            _final_flag: false,
+            _mask: None,
             payload: vec![],
         };
         for byte in &frame {
