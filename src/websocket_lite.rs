@@ -74,7 +74,7 @@ use crate::errors::{
 pub struct ParsedFrame {
     final_flag: bool,
     mask: Option<[u8; 4]>,
-    payload: Vec<u8>,
+    pub(crate) payload: Vec<u8>,
 }
 
 pub enum ParserState {

@@ -1,5 +1,5 @@
 #!/bin/sh
-export RUSTFLAGS="-Cinstrument-coverage -Ccodegen-units=4"
+export RUSTFLAGS="-Cinstrument-coverage"
 export LLVM_PROFILE_FILE="./Profiling/%p-%m.profraw"
 export RUST_BACKTRACE=1
 

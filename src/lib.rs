@@ -1163,9 +1163,12 @@ mod websocket_stream_tests {
     };
     use reqwest::Url;
     use simple_logger::SimpleLogger;
+    use std::collections::vec_deque::VecDeque;
+    use std::ops::Deref;
     use tokio::io::{
         AsyncRead,
         AsyncReadExt,
+        AsyncWriteExt,
     };
     use tokio::net::TcpStream;
     use tokio_native_tls::native_tls::TlsConnector as NativeTlsConnector;
@@ -1177,6 +1180,7 @@ mod websocket_stream_tests {
         SubscriptionBuilder,
     };
     use crate::datastructs::websocket::SubscribeRequest;
+    use crate::errors::WebsocketError;
     use crate::mocked::{
         MockClient,
         MockIOBuilder,
@@ -1184,7 +1188,10 @@ mod websocket_stream_tests {
         MockStream,
     };
     use crate::websocket_lite::{
+        FrameParser,
+        ParsedFrame,
         ParserState,
+        WebsocketStream,
         WebsocketStreamConnector,
     };
 
@@ -1741,6 +1748,60 @@ mod websocket_stream_tests {
         api.read_websocket().await.unwrap();
         api.read_websocket().await.unwrap();
         api.read_websocket().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn websocket_stream_test() {
+        let mut mock_stream = MockStream::new(&default_websocket_upgrade_resp());
+        mock_stream.append_response("response 2".as_bytes());
+        let websocket_connector = WebsocketStreamConnector::new_no_sec();
+
+        let url = Url::parse("https://www.coinbase.com").unwrap();
+        let mut stream = websocket_connector
+            .connect(mock_stream.clone(), &url)
+            .await
+            .unwrap();
+        stream.write_all("test write".as_bytes()).await.unwrap();
+
+        let mut parser = FrameParser::default();
+
+        let write = mock_stream.writes.lock().unwrap().iter();
+        let written = mock_stream.writes.lock().unwrap();
+        let vector = Vec::from_iter(written.clone().into_iter());
+        let mut queue = VecDeque::new();
+        let mut out_vec = Vec::new();
+        let mut skip = false;
+        for byte in vector {
+            if skip {
+                out_vec.push(byte.clone())
+            }
+
+            queue.push_back(byte.clone());
+
+            if queue.len() > 4 {
+                queue.pop_front();
+            }
+
+            let vec = Vec::from_iter(queue.iter().map(|byte| byte.clone()));
+            if &vec == "\r\n\r\n".as_bytes() {
+                skip = true;
+            }
+        }
+
+        for byte in out_vec {
+            match parser.process_byte(&byte) {
+                Ok(frame) => match frame {
+                    None => {}
+                    Some(frame2) => {
+                        assert_eq!(
+                            String::from_utf8_lossy(&frame2.payload),
+                            "test write".to_string()
+                        );
+                    }
+                },
+                Err(_) => {}
+            }
+        }
     }
 }
 
