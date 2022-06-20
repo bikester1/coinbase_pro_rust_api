@@ -65,6 +65,7 @@ mod websocket_lite;
 
 pub mod datastructs;
 mod mocked;
+pub mod order_book;
 
 #[cfg(all(test, feature = "mock"))]
 mod tests {
@@ -1134,21 +1135,28 @@ mod websocket_stream_tests {
     use log::LevelFilter;
     use reqwest::Url;
     use simple_logger::SimpleLogger;
+    use std::sync::Arc;
     use tokio::io::{
         AsyncReadExt,
         AsyncWriteExt,
     };
+    use tokio::sync::Mutex;
 
     use crate::api::{
         CBProAPI,
         SubscriptionBuilder,
     };
+    use crate::datastructs::orders::Side;
 
     use crate::mocked::{
         MockClient,
         MockIOBuilder,
         MockRequestBuilder,
         MockStream,
+    };
+    use crate::order_book::{
+        OrderBook,
+        OrderBookEntry,
     };
     use crate::websocket_lite::{
         FrameParser,
@@ -1770,13 +1778,109 @@ mod websocket_stream_tests {
             }
         }
     }
+
+    #[tokio::test]
+    async fn order_book_test_1() {
+        let api = CBProAPI::default();
+    }
+
+    #[tokio::test]
+    async fn order_book_test_2() {
+        let mut order_book = OrderBook {
+            bids: Arc::new(Mutex::new(vec![
+                (0f64, 1f64).try_into().unwrap(),
+                (1f64, 1f64).try_into().unwrap(),
+                (2f64, 1f64).try_into().unwrap(),
+            ])),
+            asks: Arc::new(Mutex::new(vec![
+                (6f64, 1f64).try_into().unwrap(),
+                (5f64, 1f64).try_into().unwrap(),
+                (4f64, 1f64).try_into().unwrap(),
+            ])),
+        };
+
+        let ask_lock = order_book.asks.lock().await;
+        let idx = OrderBook::find_ask_index(&ask_lock, &(5f64, 1f64).try_into().unwrap());
+        assert_eq!(idx, 1);
+        let idx = OrderBook::find_ask_index(&ask_lock, &(4f64, 1f64).try_into().unwrap());
+        assert_eq!(idx, 2);
+        let idx = OrderBook::find_ask_index(&ask_lock, &(3f64, 1f64).try_into().unwrap());
+        assert_eq!(idx, 3);
+
+        let bid_lock = order_book.bids.lock().await;
+        let idx = OrderBook::find_bid_index(&bid_lock, &(1f64, 1f64).try_into().unwrap());
+        assert_eq!(idx, 1);
+        let idx = OrderBook::find_bid_index(&bid_lock, &(0f64, 1f64).try_into().unwrap());
+        assert_eq!(idx, 0);
+        let idx = OrderBook::find_bid_index(&bid_lock, &(3f64, 1f64).try_into().unwrap());
+        assert_eq!(idx, 3);
+    }
+
+    #[tokio::test]
+    async fn order_book_test_3() {
+        let mut order_book = OrderBook {
+            bids: Arc::new(Mutex::new(vec![
+                (0f64, 1f64).try_into().unwrap(),
+                (1f64, 1f64).try_into().unwrap(),
+                (2f64, 1f64).try_into().unwrap(),
+            ])),
+            asks: Arc::new(Mutex::new(vec![
+                (6f64, 1f64).try_into().unwrap(),
+                (5f64, 1f64).try_into().unwrap(),
+                (4f64, 1f64).try_into().unwrap(),
+            ])),
+        };
+
+        order_book
+            .apply_change(Side::BUY, (0f64, 0f64).try_into().unwrap())
+            .await;
+        assert_eq!(order_book.bids.lock().await.len(), 2);
+
+        order_book
+            .apply_change(Side::BUY, (1f64, 10f64).try_into().unwrap())
+            .await;
+        assert_eq!(order_book.bids.lock().await.len(), 2);
+        let size: f64 = order_book.bids.lock().await[0].size.clone().into();
+        assert_eq!(size, 10f64);
+
+        order_book
+            .apply_change(Side::BUY, (0f64, 11f64).try_into().unwrap())
+            .await;
+        assert_eq!(order_book.bids.lock().await.len(), 3);
+        let size: f64 = order_book.bids.lock().await[0].size.clone().into();
+        assert_eq!(size, 11f64);
+
+        order_book
+            .apply_change(Side::BUY, (0f64, 0f64).try_into().unwrap())
+            .await;
+        order_book
+            .apply_change(Side::BUY, (1f64, 0f64).try_into().unwrap())
+            .await;
+        order_book
+            .apply_change(Side::BUY, (2f64, 0f64).try_into().unwrap())
+            .await;
+        assert_eq!(order_book.bids.lock().await.len(), 0);
+
+        order_book
+            .apply_change(Side::BUY, (2f64, 0f64).try_into().unwrap())
+            .await;
+        assert_eq!(order_book.bids.lock().await.len(), 1);
+    }
 }
 
 #[cfg(all(test, not(feature = "mock")))]
 mod live_tests {
+    use chrono::{
+        DateTime,
+        Utc,
+    };
     use log::LevelFilter;
     use simple_logger::SimpleLogger;
+    use std::collections::VecDeque;
+    use std::sync::Arc;
     use std::time::Duration;
+    use tokio::sync::Mutex;
+    use tokio::task::JoinHandle;
 
     use crate::api::{
         CBProAPI,

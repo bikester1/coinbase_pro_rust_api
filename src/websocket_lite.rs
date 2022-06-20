@@ -379,7 +379,7 @@ impl FrameParser {
     }
 }
 
-pub trait AsyncIO: AsyncRead + AsyncWrite + Unpin {}
+pub trait AsyncIO: AsyncRead + AsyncWrite + Unpin + Send {}
 
 macro_rules! ok_or_return_poll_poison {
     ($result:expr) => {{
@@ -569,7 +569,7 @@ where
                 }
             }
 
-            let mut arr = [0u8; 1024];
+            let mut arr = [0u8; 4096];
             let mut internal_buffer = ReadBuf::new(arr.as_mut_slice());
 
             let stream_read_result = Pin::new(&mut self.stream).poll_read(cx, &mut internal_buffer);
@@ -658,7 +658,7 @@ where
             }
         }
 
-        println!("{}", String::from_utf8_lossy(&parsed_frame.payload));
+        //println!("{}", String::from_utf8_lossy(&parsed_frame.payload));
 
         match Pin::new(&mut (self.stream)).poll_write(cx, &frame) {
             Poll::Ready(res) => match res {

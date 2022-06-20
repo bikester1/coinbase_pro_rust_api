@@ -622,7 +622,7 @@ pub struct ActivateMessage {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Quote {
     #[serde(with = "string_as_float")]
-    price: f64,
+    pub price: f64,
     #[serde(with = "string_as_float")]
-    size: f64,
+    pub size: f64,
 }

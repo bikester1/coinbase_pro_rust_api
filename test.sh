@@ -5,5 +5,5 @@ export RUST_BACKTRACE=1
 
 #cargo clean
 #cargo test --tests --features mock -- --nocapture
-cargo test --tests live_tests::level3 -- --nocapture
+cargo test --tests live_tests::order_book -- --nocapture
 grcov . --binary-path "./target/debug" -s . -t html --branch --llvm -o ./coverage/

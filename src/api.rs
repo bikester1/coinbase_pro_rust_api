@@ -7,9 +7,14 @@ use std::future::Future;
 
 use std::ops::Deref;
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
-use log::debug;
+use log::{
+    debug,
+    error,
+    trace,
+};
 use reqwest::Url;
 use serde::{
     Deserialize,
@@ -19,13 +24,17 @@ use tokio::io::{
     AsyncReadExt,
     AsyncWriteExt,
 };
-use tokio::join;
 use tokio::net::TcpStream;
 use tokio::sync::{
     Mutex,
     MutexGuard,
 };
+use tokio::task::JoinHandle;
 use tokio::time::Instant;
+use tokio::{
+    join,
+    spawn,
+};
 use tokio_native_tls::native_tls::TlsConnector as NativeTlsConnector;
 use tokio_native_tls::{
     TlsConnector,
@@ -56,6 +65,7 @@ use crate::datastructs::products::{
     Product,
     ProductBook,
 };
+use crate::datastructs::websocket::WebsocketMessage;
 use crate::errors::WebsocketError::{
     NoSocketAddressError,
     NoWebsocketConnectionError,
@@ -69,6 +79,7 @@ use crate::errors::{
     SerdeJSONParseError,
     WebsocketError,
 };
+use crate::order_book::OrderBook;
 use crate::requests::{
     CBRequestBuilder,
     RequestMethod,
@@ -327,7 +338,7 @@ impl RateLimitedPool {
 }
 
 #[async_trait]
-pub trait AsyncIOBuilder {
+pub trait AsyncIOBuilder: Send {
     async fn new_stream(&self, url: &str) -> Result<Box<dyn AsyncIO>, WebsocketError>;
 }
 
@@ -416,6 +427,7 @@ pub struct CBProAPI {
     websocket_connector: Arc<Mutex<Box<dyn AsyncIOBuilder>>>,
     websocket: Arc<Mutex<Option<Box<dyn AsyncIO>>>>,
     wss_url: Arc<Mutex<String>>,
+    threads: Arc<Mutex<Vec<JoinHandle<()>>>>,
 }
 
 #[derive(Clone)]
@@ -437,6 +449,7 @@ impl Default for CBProAPI {
                 "https://ws-feed.exchange.coinbase.com/".to_string(),
             )),
             websocket_connector: Arc::new(Mutex::new(Box::new(TokioTlsStreamBuilder {}))),
+            threads: Arc::new(Mutex::new(Vec::new())),
         }
     }
 }
@@ -452,6 +465,7 @@ impl CBProAPI {
                 "https://ws-feed.exchange.coinbase.com/".to_string(),
             )),
             websocket_connector: Arc::new(Mutex::new(Box::new(TokioTlsStreamBuilder {}))),
+            threads: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -468,6 +482,7 @@ impl CBProAPI {
                 "https://ws-feed.exchange.coinbase.com/".to_string(),
             )),
             websocket_connector: Arc::new(Mutex::new(Box::new(builder))),
+            threads: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -753,10 +768,10 @@ impl CBProAPI {
                 context: None,
             })?;
 
-        debug!(
-            "Websocket Incoming Message: {}",
-            String::from_utf8_lossy(&buf)
-        );
+        // trace!(
+        //     "Websocket Incoming Message: {}",
+        //     String::from_utf8_lossy(&buf)
+        // );
 
         let parsed_resp =
             serde_json::from_slice::<crate::datastructs::websocket::WebsocketMessage>(&buf)
@@ -766,5 +781,51 @@ impl CBProAPI {
                 })?;
 
         Ok(parsed_resp)
+    }
+
+    pub async fn new_order_book_l2(&mut self, product: String) -> OrderBook {
+        let subscription = SubscriptionBuilder::new()
+            .subscribe_to_snapshot(product)
+            .build();
+
+        self.subscribe_to_websocket(subscription).await.unwrap();
+        let order_book: OrderBook = match self.read_websocket().await.unwrap() {
+            WebsocketMessage::Snapshot(snap) => snap.into(),
+            _ => {
+                panic!("")
+            }
+        };
+
+        let self_clone = self.clone();
+        let order_book_clone = order_book.clone();
+        let handle =
+            spawn(async move { Self::manage_order_book(self_clone, order_book_clone).await });
+        self.threads.lock().await.push(handle);
+        order_book
+    }
+
+    pub(crate) async fn manage_order_book(mut self, mut order_book: OrderBook) {
+        loop {
+            let res = match tokio::time::timeout(Duration::new(5, 0), self.read_websocket()).await {
+                Ok(msg) => match msg {
+                    Ok(msg) => msg,
+                    Err(err) => {
+                        error!("{}", err);
+                        continue;
+                    }
+                },
+                Err(err) => {
+                    error!("{}", err);
+                    continue;
+                }
+            };
+
+            match res {
+                WebsocketMessage::L2Update(updates) => {
+                    order_book.apply_change_l2_changes(updates.changes).await;
+                }
+                _ => {}
+            }
+        }
     }
 }
