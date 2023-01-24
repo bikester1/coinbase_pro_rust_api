@@ -783,6 +783,7 @@ impl CBProAPI {
         Ok(parsed_resp)
     }
 
+    /*
     pub async fn new_order_book_l2(&mut self, product: String) -> OrderBook {
         let subscription = SubscriptionBuilder::new()
             .subscribe_to_snapshot(product)
@@ -799,7 +800,7 @@ impl CBProAPI {
         let self_clone = self.clone();
         let order_book_clone = order_book.clone();
         let handle =
-            spawn(async move { Self::manage_order_book(self_clone, order_book_clone).await });
+            spawn(Self::manage_order_book(self_clone, order_book_clone));
         self.threads.lock().await.push(handle);
         order_book
     }
@@ -828,4 +829,5 @@ impl CBProAPI {
             }
         }
     }
+     */
 }

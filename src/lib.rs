@@ -1141,6 +1141,7 @@ mod websocket_stream_tests {
         AsyncWriteExt,
     };
     use tokio::sync::Mutex;
+    use tokio::time::Instant;
 
     use crate::api::{
         CBProAPI,
@@ -1797,6 +1798,7 @@ mod websocket_stream_tests {
                 (5f64, 1f64).try_into().unwrap(),
                 (4f64, 1f64).try_into().unwrap(),
             ])),
+            updated: Arc::new(Mutex::new(Instant::now())),
         };
 
         let ask_lock = order_book.asks.lock().await;
@@ -1829,6 +1831,7 @@ mod websocket_stream_tests {
                 (5f64, 1f64).try_into().unwrap(),
                 (4f64, 1f64).try_into().unwrap(),
             ])),
+            updated: Arc::new(Mutex::new(Instant::now())),
         };
 
         order_book

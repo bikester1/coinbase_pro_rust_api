@@ -59,6 +59,12 @@ impl PartialEq<Self> for RealFloat {
     }
 }
 
+impl PartialEq<f64> for RealFloat {
+    fn eq(&self, other: &f64) -> bool {
+        self.0 == other.clone()
+    }
+}
+
 impl Eq for RealFloat {}
 
 impl PartialOrd for RealFloat {
@@ -281,14 +287,21 @@ impl OrderBook {
             Side::SELL => Self::find_ask_index(&lock, &entry),
         };
 
+
+
         if idx == lock.len() {
             lock.insert(idx, entry);
             mem::swap(self.updated.lock().await.deref_mut(), &mut Instant::now());
             return;
         }
 
+        if entry.size == 0.0{
+            lock.remove(idx);
+            return;
+        }
+
         if lock.index(idx).price == entry.price {
-            if entry.size == 0f64.try_into().unwrap() {
+            if entry.size == 0f64 {
                 lock.remove(idx);
             } else {
                 lock.index_mut(idx).size = entry.size;
@@ -298,7 +311,7 @@ impl OrderBook {
             return;
         }
 
-        if lock.index(idx).price != entry.price && entry.size != 0f64.try_into().unwrap() {
+        if lock.index(idx).price != entry.price && entry.size != 0f64 {
             lock.insert(idx, entry);
             mem::swap(self.updated.lock().await.deref_mut(), &mut Instant::now());
             return;
@@ -316,6 +329,8 @@ impl OrderBook {
         };
 
         let mut lock = vec.lock().await;
+
+        self.apply_change_with_lock(side, entry, &mut lock).await;
     }
 
     pub(crate) fn find_bid_index(
